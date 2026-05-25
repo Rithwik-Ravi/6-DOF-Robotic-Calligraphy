@@ -1,0 +1,14 @@
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.AssemblyInfoInputs.cache
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.AssemblyInfo.cs
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.csproj.CoreCompileInputs.cache
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\bin\Debug\net8.0-windows\RobotCalligraphyApp.exe
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\bin\Debug\net8.0-windows\RobotCalligraphyApp.deps.json
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\bin\Debug\net8.0-windows\RobotCalligraphyApp.runtimeconfig.json
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\bin\Debug\net8.0-windows\RobotCalligraphyApp.dll
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\bin\Debug\net8.0-windows\RobotCalligraphyApp.pdb
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.dll
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\refint\RobotCalligraphyApp.dll
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.pdb
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.genruntimeconfig.cache
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\ref\RobotCalligraphyApp.dll
