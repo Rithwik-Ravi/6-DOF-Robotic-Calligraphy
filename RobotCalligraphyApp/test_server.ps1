@@ -1,4 +1,4 @@
-$port = 10003
+$port = 5555
 $endpoint = new-object System.Net.IPEndPoint([system.net.ipaddress]::Any, $port)
 $listener = new-object System.Net.Sockets.TcpListener($endpoint)
 $listener.start()

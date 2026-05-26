@@ -96,7 +96,7 @@ namespace RobotCalligraphyApp
 
             // Network Controls
             Label lblIp = new Label() { Text = "IP:", Location = new Point(10, 48), AutoSize = true };
-            txtIpAddress = new TextBox() { Location = new Point(40, 45), Width = 120, Text = "192.168.0.20" };
+            txtIpAddress = new TextBox() { Location = new Point(40, 45), Width = 120, Text = "127.0.0.1" };
             
             Label lblPort = new Label() { Text = "Port:", Location = new Point(170, 48), AutoSize = true };
             txtPort = new TextBox() { Location = new Point(210, 45), Width = 60, Text = "10003" };
@@ -277,20 +277,39 @@ namespace RobotCalligraphyApp
         {
             if (!robotClient.IsConnected || waypoints.Count == 0) return;
             btnExecute.Enabled = false;
-            foreach (var wp in waypoints)
+            
+            try
             {
-                string pt = $"{wp.X:F2};{wp.Y:F2};{wp.Z:F2}";
-                try
+                // Home Position
+                string pHomeStr = "MOV;  400.00;    0.00;  300.00";
+                string? resp = await robotClient.SendAsync(pHomeStr);
+                if (resp?.Trim() != "ACK") throw new Exception("Robot did not acknowledge home move.");
+
+                bool isFirstMove = true;
+                foreach (var wp in waypoints)
                 {
-                    string? resp = await robotClient.SendAsync(pt);
-                    if (resp?.Trim() != "ACK") break;
+                    string commandType = isFirstMove ? "MOV" : "MVS";
+                    string pt = $"{commandType};{wp.X,8:F2};{wp.Y,8:F2};{wp.Z,8:F2}";
+                    
+                    resp = await robotClient.SendAsync(pt);
+                    if (resp?.Trim() != "ACK") throw new Exception("Robot streaming interrupted.");
+                    
+                    isFirstMove = false;
                 }
-                catch
-                {
-                    break;
-                }
+
+                // Return Home
+                await robotClient.SendAsync(pHomeStr);
+                
+                MessageBox.Show("Calligraphy sequence finished!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            if (robotClient.IsConnected) btnExecute.Enabled = true;
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Streaming failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                if (robotClient.IsConnected) btnExecute.Enabled = true;
+            }
         }
 
         private async void Form1_FormClosing(object? sender, FormClosingEventArgs e)
@@ -318,24 +337,40 @@ namespace RobotCalligraphyApp
                 return;
             }
 
-            // Physical Constraints
-            float drawZ = 126.55f; // Average of the 4 Z heights
-            float transitZ = 160.0f; // Safe height
+            // Physical Constraints for RV-8CRL Simulator
+            float drawZ = 100.00f; // Draw height
+            float transitZ = 150.00f; // Safe transit height
             
-            // Quad Corners (p1a is TopLeft, p2a is TopRight, p4a is BottomLeft)
-            // Restored the exact physical coordinates for the real robot!
-            PointF p1a = new PointF(-643.160f, 866.620f);
-            PointF p2a = new PointF(-500.220f, 891.050f);
-            PointF p4a = new PointF(-658.410f, 677.510f);
+            // Quad Corners perfectly in front of the robot (+X)
+            PointF p1a = new PointF(400.00f, 100.00f);
+            PointF p2a = new PointF(400.00f, -100.00f);
+            PointF p4a = new PointF(300.00f, 100.00f);
 
             // Text Layout Config
             float letterWidth = 1.0f;
             float letterSpacing = 0.4f;
             float totalWidth = (text.Length * letterWidth) + ((text.Length - 1) * letterSpacing);
 
+            // Orthogonal Vector Math (Fixes the slant!)
+            float dxW = p2a.X - p1a.X;
+            float dyW = p2a.Y - p1a.Y;
+            float magW = (float)Math.Sqrt(dxW * dxW + dyW * dyW);
+            
+            float dxH_raw = p4a.X - p1a.X;
+            float dyH_raw = p4a.Y - p1a.Y;
+            float magH = (float)Math.Sqrt(dxH_raw * dxH_raw + dyH_raw * dyH_raw);
+
+            // Create a perfectly perpendicular Height vector from the Width vector
+            // Perpendicular vector in 2D is (dy, -dx)
+            float perpX = dyW;
+            float perpY = -dxW;
+            float magPerp = (float)Math.Sqrt(perpX * perpX + perpY * perpY);
+            
+            // Scale perfectly orthogonal height vector to the original measured magnitude
+            float dxH = (perpX / magPerp) * magH;
+            float dyH = (perpY / magPerp) * magH;
+
             // Aspect Ratio Preservation Math
-            float magW = (float)Math.Sqrt(Math.Pow(p2a.X - p1a.X, 2) + Math.Pow(p2a.Y - p1a.Y, 2));
-            float magH = (float)Math.Sqrt(Math.Pow(p4a.X - p1a.X, 2) + Math.Pow(p4a.Y - p1a.Y, 2));
             float S = Math.Min(magW / totalWidth, magH / 1.0f);
             
             float scaleU = (totalWidth * S) / magW;
@@ -365,9 +400,9 @@ namespace RobotCalligraphyApp
                         float u = offsetU + (rawU * scaleU);
                         float v = offsetV + (rawV * scaleV);
 
-                        // Affine Mapping to physical table
-                        float xRobot = p1a.X + u * (p2a.X - p1a.X) + v * (p4a.X - p1a.X);
-                        float yRobot = p1a.Y + u * (p2a.Y - p1a.Y) + v * (p4a.Y - p1a.Y);
+                        // Perfect Orthogonal Mapping to physical table
+                        float xRobot = p1a.X + u * dxW + v * dxH;
+                        float yRobot = p1a.Y + u * dyW + v * dyH;
 
                         if (pt == 0) // Start of stroke (Transit down)
                         {
@@ -393,8 +428,9 @@ namespace RobotCalligraphyApp
                         float rawV = lastPt.Y;
                         float u = offsetU + (rawU * scaleU);
                         float v = offsetV + (rawV * scaleV);
-                        float xRobot = p1a.X + u * (p2a.X - p1a.X) + v * (p4a.X - p1a.X);
-                        float yRobot = p1a.Y + u * (p2a.Y - p1a.Y) + v * (p4a.Y - p1a.Y);
+                        // Perfect Orthogonal Mapping to physical table
+                        float xRobot = p1a.X + u * dxW + v * dxH;
+                        float yRobot = p1a.Y + u * dyW + v * dyH;
                         waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ));
                     }
                 }

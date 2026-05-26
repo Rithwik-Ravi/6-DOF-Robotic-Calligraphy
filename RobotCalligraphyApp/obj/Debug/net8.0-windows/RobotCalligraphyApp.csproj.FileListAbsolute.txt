@@ -12,3 +12,4 @@ C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Deb
 C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.pdb
 C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.genruntimeconfig.cache
 C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\ref\RobotCalligraphyApp.dll
+C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp\obj\Debug\net8.0-windows\RobotCalligraphyApp.sourcelink.json

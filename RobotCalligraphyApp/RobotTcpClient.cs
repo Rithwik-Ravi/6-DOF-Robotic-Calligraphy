@@ -27,14 +27,24 @@ namespace RobotCalligraphyApp
             _reader = new StreamReader(stream, Encoding.ASCII);
             _writer = new StreamWriter(stream, Encoding.ASCII) { AutoFlush = true };
         }
-
         public async Task<string?> SendAsync(string command)
         {
             if (_writer == null || _reader == null || !IsConnected)
                 throw new InvalidOperationException("Not connected to the robot.");
 
-            await _writer.WriteLineAsync(command);
-            return await _reader.ReadLineAsync();
+            // 1. Send command terminated by pure CR (Simulator Default)
+            await _writer.WriteAsync(command + "\r");
+            await _writer.FlushAsync();
+
+            // 2. Read response manually until CR (bypassing Windows ReadLine \n requirement)
+            var sb = new System.Text.StringBuilder();
+            char[] buffer = new char[1];
+            while (await _reader.ReadAsync(buffer, 0, 1) > 0)
+            {
+                if (buffer[0] == '\r') break;
+                if (buffer[0] != '\n') sb.Append(buffer[0]);
+            }
+            return sb.ToString();
         }
 
         public void Disconnect()
