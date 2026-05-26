@@ -33,7 +33,7 @@ namespace RobotCalligraphyApp
                 throw new InvalidOperationException("Not connected to the robot.");
 
             // 1. Send command terminated by pure CR (Simulator Default)
-            await _writer.WriteAsync(command + "\r");
+            await _writer.WriteAsync("\"" + command + "\"\r");
             await _writer.FlushAsync();
 
             // 2. Read response manually until CR (bypassing Windows ReadLine \n requirement)

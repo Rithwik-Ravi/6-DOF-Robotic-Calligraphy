@@ -1,3 +1,4 @@
+Servo On
 Ovrd 20
 Spd 100
 P3 = (-586.18, +783.00, +182.01, +177.94, +0.35, +119.72)(7,1048576)
@@ -27,7 +28,7 @@ If M_Open(1) = 0 Then GoTo *WAITCONN
         MVS P2
     EndIf
 
-    Print #1, "ACK"
+    Print #1, "ACK: " + C2$ + " X:" + C3$ + " Y:" + C4$ + " Z:" + C5$
 GoTo *LOOP
 
 *QUIT

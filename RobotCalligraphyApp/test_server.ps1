@@ -15,7 +15,14 @@ $writer.AutoFlush = $true
 
 while ($client.Connected) {
     if ($stream.DataAvailable) {
-        $line = $reader.ReadLine()
+        $line = ""
+        while ($client.Connected) {
+            $char = $reader.Read()
+            if ($char -eq -1) { break }
+            if ($char -eq 13 -or $char -eq 10) { break }
+            $line += [char]$char
+        }
+        
         if ($line -eq "STOP") {
             Write-Host "Received STOP command. Closing..."
             break

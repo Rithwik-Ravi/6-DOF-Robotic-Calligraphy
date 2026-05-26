@@ -283,7 +283,7 @@ namespace RobotCalligraphyApp
                 // Home Position
                 string pHomeStr = "MOV;  400.00;    0.00;  300.00";
                 string? resp = await robotClient.SendAsync(pHomeStr);
-                if (resp?.Trim() != "ACK") throw new Exception("Robot did not acknowledge home move.");
+                if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot did not acknowledge home move. Response: {resp}");
 
                 bool isFirstMove = true;
                 foreach (var wp in waypoints)
@@ -292,7 +292,7 @@ namespace RobotCalligraphyApp
                     string pt = $"{commandType};{wp.X,8:F2};{wp.Y,8:F2};{wp.Z,8:F2}";
                     
                     resp = await robotClient.SendAsync(pt);
-                    if (resp?.Trim() != "ACK") throw new Exception("Robot streaming interrupted.");
+                    if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot streaming interrupted. Response: {resp}");
                     
                     isFirstMove = false;
                 }
