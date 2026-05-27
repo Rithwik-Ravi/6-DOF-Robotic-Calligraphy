@@ -11,8 +11,16 @@ try {
     
     while ($tcpClient.Connected) {
         if ($stream.DataAvailable) {
-            $line = $reader.ReadLine()
-            Write-Host "Robot says: $line"
+            $line = ""
+            while ($tcpClient.Connected) {
+                $char = $reader.Read()
+                if ($char -eq -1) { break }
+                if ($char -eq 13 -or $char -eq 10) { break }
+                $line += [char]$char
+            }
+            if ($line) {
+                Write-Host "Robot says: $line"
+            }
         }
         Start-Sleep -Milliseconds 50
     }

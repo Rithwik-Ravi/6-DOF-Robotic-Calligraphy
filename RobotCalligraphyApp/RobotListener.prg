@@ -1,4 +1,3 @@
-Servo On
 Ovrd 20
 Spd 100
 P3 = (-586.18, +783.00, +182.01, +177.94, +0.35, +119.72)(7,1048576)
@@ -9,7 +8,7 @@ OPEN "COM2:" AS #1
 If M_Open(1) = 0 Then GoTo *WAITCONN
 
 *LOOP
-    INPUT #1, C1$
+    Line Input #1, C1$
     If C1$ = "STOP" Then GoTo *QUIT
 
     C2$ = Mid$(C1$, 1, 3)
@@ -21,14 +20,14 @@ If M_Open(1) = 0 Then GoTo *WAITCONN
     P2.X = Val(C3$)
     P2.Y = Val(C4$)
     P2.Z = Val(C5$)
-
+    
     If C2$ = "MOV" Then
         MOV P2
     ElseIf C2$ = "MVS" Then
         MVS P2
     EndIf
 
-    Print #1, "ACK: " + C2$ + " X:" + C3$ + " Y:" + C4$ + " Z:" + C5$
+    Print #1, "ACK"
 GoTo *LOOP
 
 *QUIT
