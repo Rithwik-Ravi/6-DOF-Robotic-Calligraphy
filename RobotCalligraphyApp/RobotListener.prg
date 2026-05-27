@@ -8,7 +8,7 @@ OPEN "COM2:" AS #1
 If M_Open(1) = 0 Then GoTo *WAITCONN
 
 *LOOP
-    Line Input #1, C1$
+    INPUT #1, C1$
     If C1$ = "STOP" Then GoTo *QUIT
 
     C2$ = Mid$(C1$, 1, 3)

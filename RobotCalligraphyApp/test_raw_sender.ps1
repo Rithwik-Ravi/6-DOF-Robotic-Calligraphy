@@ -1,49 +1,59 @@
 $server = "192.168.0.20"
 $port = 10003
 
-Write-Host "Connecting to Virtual Robot on $server : $port..."
+Write-Host "Connecting to Robot on $server : $port..."
 try {
     $tcpClient = New-Object System.Net.Sockets.TcpClient($server, $port)
     $stream = $tcpClient.GetStream()
-    $writer = New-Object System.IO.StreamWriter($stream, [System.Text.Encoding]::ASCII)
-    $writer.AutoFlush = $true
-    $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::ASCII)
+    $stream.ReadTimeout = 5000
+    $stream.WriteTimeout = 5000
     
-    Write-Host "Connected!"
-    Write-Host "Type exactly what you want to send and press Enter."
-    Write-Host "Type exactly what you want to send and press Enter. (No quotes needed)"
-    Write-Host "The script will automatically add the Carriage Return."
-    Write-Host "Example: MOV;  500.00;  100.00;  800.00"
+    Write-Host "Connected!" -ForegroundColor Green
+    
+    # Drain any initial bytes the robot sends upon connection (e.g. INPUT prompt)
+    Start-Sleep -Milliseconds 500
+    $initBytes = ""
+    while ($stream.DataAvailable) {
+        $b = $stream.ReadByte()
+        $initBytes += "[" + $b.ToString() + "=" + [char]$b + "] "
+    }
+    if ($initBytes) {
+        Write-Host "Initial bytes from robot: $initBytes" -ForegroundColor Yellow
+    }
+    
+    Write-Host ""
+    Write-Host "Type your command and press Enter."
+    Write-Host "Example: MOV; -586.18;  783.00;  182.01"
     Write-Host "Type 'exit' to quit."
+    Write-Host ""
     
     while ($tcpClient.Connected) {
-        $userInput = Read-Host "Send to Robot"
+        $userInput = Read-Host "Send"
         if ($userInput -eq "exit") { break }
         
-        # Test WITHOUT quotes, just the raw string + CRLF
-        $processed = $userInput + "`r`n"
+        # Build the raw byte payload: the string + CR only (no LF)
+        # OPT12 Packet Type is 0:CR, so the controller expects CR as delimiter
+        $payload = $userInput + "`r"
+        $bytes = [System.Text.Encoding]::ASCII.GetBytes($payload)
         
-        $writer.Write($processed)
-        Write-Host "-> Sent payload."
+        Write-Host "-> Sending $($bytes.Length) bytes: [$userInput\r]"
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush()
 
-        # Wait for the robot to move and reply
+        # Wait for response
         Write-Host "Waiting for response..."
         $response = ""
-        
-        # Robust read that doesn't drop characters if they arrive slowly
-        $timeout = 20
+        $timeout = 50  # 5 seconds
         while ($tcpClient.Connected -and $timeout -gt 0) {
             if ($stream.DataAvailable) {
-                while ($stream.DataAvailable) {
-                    $char = $reader.Read()
-                    if ($char -eq -1) { break }
-                    if ($char -eq 13 -or $char -eq 10) { 
-                        if ($response.Length -gt 0) { break }
-                        continue
-                    }
-                    $response += [char]$char
+                $b = $stream.ReadByte()
+                if ($b -eq -1) { break }
+                if ($b -eq 13 -or $b -eq 10) { 
+                    if ($response.Length -gt 0) { break }
+                    continue
                 }
-                if ($response.Length -gt 0) { break } # We got a full line
+                $response += [char]$b
+                $timeout = 50  # reset on each byte received
             } else {
                 Start-Sleep -Milliseconds 100
                 $timeout--
@@ -53,11 +63,11 @@ try {
         if ($response) {
             Write-Host "Robot says: $response" -ForegroundColor Green
         } else {
-            Write-Host "No response received." -ForegroundColor Red
+            Write-Host "No response within 5 seconds." -ForegroundColor Red
         }
     }
     
     $tcpClient.Close()
 } catch {
-    Write-Host "Failed to connect. Is the robot script running and waiting at WAITCONN?"
+    Write-Host "Error: $_" -ForegroundColor Red
 }

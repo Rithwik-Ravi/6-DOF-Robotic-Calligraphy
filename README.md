@@ -4,62 +4,186 @@
 ![Mitsubishi Electric](https://img.shields.io/badge/Mitsubishi_Electric-E60012?style=for-the-badge&logo=mitsubishielectric&logoColor=white)
 ![TCP/IP](https://img.shields.io/badge/TCP/IP-000000?style=for-the-badge&logo=tcp%2Fip&logoColor=white)
 
-This repository contains the software architecture for real-time robotic calligraphy. It uses a Mitsubishi Electric CR800 Controller and a 6-DOF robotic arm. 
+Real-time robotic calligraphy using a Mitsubishi RV-8CRL-D arm + CR800 controller. A C# WinForms app streams live coordinates over TCP to a MELFA BASIC VI listener on the robot — no pre-programmed waypoints needed.
 
-Industrial robot controllers usually rely on static, pre-programmed waypoints. This project bypasses those limitations. It implements a Custom Asynchronous TCP Socket Server in C#. This allows for real-time, dynamic toolpath generation and execution.
+---
 
-## 🚀 Architecture Overview
+## 🚀 Architecture
 
-The system has two primary components communicating over a standard TCP/IP socket:
+```
+C# App (Client)  ──TCP/IP──▶  CR800 Controller (Server)  ──▶  RV-8CRL-D Arm
+   Port 10003                   RobotListener.prg                 6-DOF Motion
+```
 
-1. **C# Coordinate Engine (Client)**: Translates user text input into continuous spatial toolpaths. It uses a custom single-stroke vector font engine. It then streams the physical coordinates `(X, Y, Z)` asynchronously to the robot.
-2. **MELFA BASIC VI Listener (Server)**: A lightweight script (`RobotListener.prg`) running continuously on the CR800 controller. It listens on port `10003` using the `Line Input` command to parse incoming ASCII coordinate strings. It commands the servo drives using joint (`MOV`) or linear (`MVS`) interpolation immediately.
+- **C# Coordinate Engine** — Converts text → single-stroke vector paths → `(X, Y, Z)` coordinates
+- **MELFA BASIC VI Listener** — Parses incoming ASCII strings, commands servos via `MOV`/`MVS`
+- **Bidirectional handshake** — Client sends coordinate → Robot moves → Robot replies `ACK` → Client sends next
 
-### The Handshake & Communication Protocol
+### Packet Format
+```
+MOV; -500.00;  850.00;  126.55\r
+```
+- 3-char command (`MOV` or `MVS`)
+- Fixed-width X, Y, Z fields separated by semicolons
+- Terminated with CR (`\r`)
 
-- **Connection**: The C# Client connects to the CR800 Controller on `IP: 192.168.0.20`, Port: `10003`.
-- **Packet Structure**: Coordinates are formatted as fixed-length strings. This minimizes parsing overhead on the controller. 
-  Example: `MVS; -500.00;  850.00;  126.55\r\n`
-- **Execution Loop**:
-  1. Client sends a coordinate packet.
-  2. Controller parses the string and updates the target position vector (`P2`).
-  3. Controller executes the physical move.
-  4. Controller replies with an `ACK` string.
-  5. Client awaits the `ACK` before streaming the next waypoint. This ensures the robot's motion planner is never overwhelmed.
+---
 
-## 🔌 Physical Controller Setup (CR800)
+## 🔌 Hardware Setup
 
-To establish raw TCP/IP communication, the physical controller MUST be properly configured to bypass the proprietary MC procedural protocol.
+### Physical Connections
+- Ethernet cable from laptop → CR800 controller LAN port
+- No USB required
 
-1. Connect your PC to the CR800 controller via Ethernet. Set your PC to a static IP on the same subnet (e.g., `192.168.0.100`).
-2. Open **RT ToolBox3** -> **Parameter** -> **Communication and network**.
-3. **Configure OPT12:**
-   - **Device:** `OPT12`
-   - **Mode:** `1: Server`
-   - **Port #:** `10003`
-   - **Protocol:** `0: No-procedure`
-   - **Packet Type:** `0: CR`
-4. **Link COMDEV:** On the right side of that same parameter window, under **Device Allocation: (COMDEV)**, change the dropdown for **COM2:** to `OPT12`. This allows the script's `OPEN "COM2:"` command to bind to the Ethernet socket.
-5. **Write and Reboot:** Click **Write to Controller**, power down the physical controller box for 5 seconds, and turn it back on.
+### Network Configuration
+- **Robot IP:** `192.168.0.20` (factory default)
+- **Laptop IP:** `192.168.0.100` (static, same subnet)
+- **Subnet Mask:** `255.255.255.0`
+- Verify with `ping 192.168.0.20` in PowerShell
 
-## 🧪 How to Run and Test
+---
 
-### 1. Test Physical Robot Movement (`test_raw_sender.ps1`)
-Use this PowerShell script to manually send individual coordinates to the physical robot to verify networking and kinematics.
-1. Turn **Servos ON** on the controller teach pendant.
-2. Run `RobotListener.prg` on the controller. It will halt at `*WAITCONN`.
-3. Open PowerShell and run `.\test_raw_sender.ps1`. It will connect to `192.168.0.20:10003`.
-4. Type `MOV; -586.18;  783.00;  182.01` and press Enter.
-5. The physical robot will move, and PowerShell will print `Robot says: ACK`.
+## 🛠️ RT ToolBox3 Setup (From Scratch)
 
-### 2. Full Calligraphy Execution (C# App)
-Once the manual test is successful, you can stream full toolpaths.
-1. Run the C# WinForms App.
-2. Enter the robot's IP `192.168.0.20` and Port `10003`.
-3. Click **Connect**.
-4. Type your desired text, click **Generate**, and check the visual preview.
-5. Click **Execute** to stream the path asynchronously to the physical robot.
+### 1. Create New Workspace
+- Open RT ToolBox3 → Workspace → New
+- Name: `RobotCalligraphyEthernet`
+- Robot Model: Select `RV-8CRL-D`
+
+### 2. Communication Settings (Step 3 in Wizard)
+- **IP Address:** `192.168.0.20`
+- **Subnet Mask:** `255.255.255.0`
+- **Method:** `TCP/IP`
+- **Port #:** `10001` (for RT ToolBox3's own connection)
+- Click Finish
+
+### 3. Configure OPT12 (Ethernet Data Link Port)
+- Go to Parameter → Communication and Network
+- Double-click **OPT12** in the Device List
+- Set these values:
+  - **Mode:** `1: Server`
+  - **Port #:** `10003`
+  - **Protocol:** `0: No-procedure`
+  - **Packet Type:** `0: CR`
+- Click OK
+
+### 4. Set CPRCE12 to Data Link Mode ⚠️ CRITICAL
+- Go to Parameter → **Parameter List**
+- Search for `CPRCE`
+- Find element for OPT12 (either `CPRCE(2)` or `CPRCE12`)
+- **Change value from `0` to `2`**
+  - `0` = Command server intercepts all traffic (broken)
+  - `2` = Data Link mode — raw data goes to MELFA BASIC `INPUT`/`PRINT` (working)
+- Click **Write** (NOT Initialize)
+
+### 5. Map COM2 to OPT12
+- In Parameter List, search for `COMDEV`
+- Set `COMDEV(2)` = `OPT12`
+- Click **Write**
+
+### 6. Power Cycle
+- Turn controller OFF → wait 5 sec → turn ON
+- Parameters only take effect after reboot
+
+### 7. Load the Program
+- In the workspace tree, right-click Program folder → Add Existing
+- Select `RobotListener.prg` from this repo
+- Right-click → Write to Controller
+
+---
+
+## 🧪 Testing (Step-by-Step)
+
+### Step 1: Verify the Connection (Diagnostic)
+1. Turn **Servos ON** on teach pendant
+2. Run `RobotListener.prg` on controller → waits at `*WAITCONN`
+3. Open PowerShell:
+   ```
+   cd C:\Users\Rithwik\Desktop\Mitsubishi\RobotCalligraphy\RobotCalligraphyApp
+   .\test_diagnostic.ps1
+   ```
+4. Script auto-connects, sends one coordinate, listens for 10 seconds
+5. ✅ Expected: `Response #1: [ACK]` and robot arm moves
+
+### Step 2: Manual Coordinate Sender
+1. Restart `RobotListener.prg` on controller
+2. Run:
+   ```
+   .\test_raw_sender.ps1
+   ```
+3. Type: `MOV; -586.18;  783.00;  182.01` → press Enter
+4. ✅ Expected: `Robot says: ACK` and robot moves to position
+5. Send more coordinates or type `exit` to quit
+
+### Step 3: Full C# Application
+1. Restart `RobotListener.prg` on controller
+2. Build and run the C# WinForms app
+3. Enter IP: `192.168.0.20`, Port: `10003`
+4. Click **Connect**
+5. Type text → Click **Generate** → Check visual preview
+6. Click **Execute** → coordinates stream to robot
+
+---
+
+## 📁 File Structure
+
+| File | Purpose |
+|------|---------|
+| `RobotListener.prg` | MELFA BASIC VI TCP server — runs on controller |
+| `RobotTcpClient.cs` | C# TCP client — handles socket communication |
+| `Form1.cs` | WinForms UI — text input, preview, execution |
+| `test_diagnostic.ps1` | Auto-sends one command, captures all responses for 10s |
+| `test_raw_sender.ps1` | Interactive manual coordinate sender |
+| `test_server.ps1` | Mock TCP server for testing C# app without robot |
+| `test_client.ps1` | Passive listener to check robot broadcasts |
+
+---
+
+## 🐛 Issues Encountered & Fixes
+
+### 1. "COM file is not opened" (Error 3140)
+- **Cause:** `COM2:` had no device mapped to it
+- **Fix:** Set `COMDEV(2) = OPT12` in Parameter List → Write → Reboot
+
+### 2. Robot responds with `QeR601000000` instead of `ACK`
+- **Cause:** `CPRCE12 = 0` (No-procedure) still routes traffic through the controller's built-in MC Protocol command server, which intercepts and rejects raw strings
+- **Fix:** Set `CPRCE12 = 2` (Data Link mode) → Write → Reboot
+- This was the **root cause** of all communication failures
+
+### 3. `Line Input #1, C1$` → Syntax Error
+- **Cause:** `Line Input` is not supported in MELFA BASIC VI
+- **Fix:** Use standard `INPUT #1, C1$`
+
+### 4. `INPUT #1, "", C1$` → Syntax Error
+- **Cause:** Prompt string syntax not supported on CR800
+- **Fix:** Use standard `INPUT #1, C1$`
+
+### 5. PowerShell `ReadLine()` hangs forever
+- **Cause:** MELFA BASIC terminates with `\r` only (no `\n`), Windows `ReadLine()` waits for `\n`
+- **Fix:** Byte-by-byte reading, break on `\r` (ASCII 13)
+
+### 6. RT ToolBox3 simulator — `Print #1` never reaches client
+- **Cause:** RT ToolBox3's virtual networking does not support bidirectional TCP on loopback
+- **Fix:** Test on physical hardware only
+
+---
+
+## 🔮 Next Steps
+
+### Phase 1: Continuous Calligraphy Streaming
+- [ ] Stream full vector font toolpath from C# app to physical robot
+- [ ] Verify `ACK`-gated flow control at 20% override speed
+- [ ] Tune `Ovrd` and `Spd` parameters for smooth pen strokes
+- [ ] Add pen-up / pen-down Z-axis logic for letter spacing
+
+### Phase 2: 3D Printing / Additive Manufacturing
+- [ ] Extend coordinate system to include Z-layer slicing
+- [ ] Implement G-code → coordinate converter
+- [ ] Add material extrusion control (end-effector I/O)
+- [ ] Multi-layer path planning with Z-increment per layer
+
+---
 
 ## 🧠 Why This Matters
 
-Writing a standard `.prg` file is standard operator work. Developing a bidirectional, real-time streaming architecture is much more advanced. It demonstrates a deep understanding of network programming, parameter routing, and low-level controller integration. This architecture opens the door for computer vision integration and dynamic collision avoidance. These features are essential for modern Industry 4.0 applications.
+Building a standard `.prg` file is operator-level work. This project implements a **bidirectional real-time streaming architecture** with deep parameter-level controller integration (`COMDEV`, `CPRCE`, `OPT` routing). This opens the door for computer vision integration, dynamic collision avoidance, and adaptive toolpath generation — core capabilities for Industry 4.0 applications.
