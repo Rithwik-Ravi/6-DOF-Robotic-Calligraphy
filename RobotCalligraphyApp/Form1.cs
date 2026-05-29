@@ -56,6 +56,7 @@ namespace RobotCalligraphyApp
         private Button btnVectorize = null!;
         private TextBox txtImagePath = null!;
         private NumericUpDown numImageWidth = null!;
+        private PictureBox picOriginal = null!;
 
         // Execution Control
         private CancellationTokenSource? executionCts;
@@ -272,11 +273,22 @@ namespace RobotCalligraphyApp
             btnVectorize = new Button() { Text = "Vectorize Image", Location = new Point(620, 105), Width = 120, Enabled = false };
             btnVectorize.Click += BtnVectorize_Click;
 
+            // === ORIGINAL IMAGE PICTUREBOX ===
+            picOriginal = new PictureBox()
+            {
+                Location = new Point(10, 140),
+                Size = new Size(570, 625),
+                BorderStyle = BorderStyle.FixedSingle,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left,
+                BackColor = Color.White,
+                SizeMode = PictureBoxSizeMode.Zoom
+            };
+
             // === PREVIEW PICTUREBOX ===
             picPreview = new PictureBox() 
             { 
-                Location = new Point(10, 140), 
-                Size = new Size(1160, 625), 
+                Location = new Point(590, 140), 
+                Size = new Size(580, 625), 
                 BorderStyle = BorderStyle.FixedSingle,
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.White
@@ -307,6 +319,7 @@ namespace RobotCalligraphyApp
             this.Controls.Add(lblImageWidth);
             this.Controls.Add(numImageWidth);
             this.Controls.Add(btnVectorize);
+            this.Controls.Add(picOriginal);
             this.Controls.Add(picPreview);
 
             this.FormClosing += Form1_FormClosing;
@@ -324,6 +337,7 @@ namespace RobotCalligraphyApp
                 if (ofd.ShowDialog() == DialogResult.OK)
                 {
                     txtImagePath.Text = ofd.FileName;
+                    picOriginal.ImageLocation = ofd.FileName;
                     btnVectorize.Enabled = true;
                 }
             }
@@ -492,8 +506,8 @@ namespace RobotCalligraphyApp
                                         previewTypes.Add(1); // Line marker
                                     }
                                     
-                                    // 2D preview (scaled for PictureBox, matching text preview)
-                                    previewPoints.Add(new PointF(u * 800f, v * 800f));
+                                    // 2D preview (saved as unscaled u, v)
+                                    previewPoints.Add(new PointF(u, v));
                                 }
                                 
                                 // Lift pen at end of contour
@@ -981,8 +995,8 @@ namespace RobotCalligraphyApp
                                     previewTypes.Add(1); // Line marker
                                 }
 
-                                // 2D preview point
-                                previewPoints.Add(new PointF(u * 800f, v * 800f));
+                                // 2D preview point (saved as unscaled u, v)
+                                previewPoints.Add(new PointF(u, v));
                             }
 
                             // Lift pen after each stroke
@@ -1023,27 +1037,43 @@ namespace RobotCalligraphyApp
 
         private void PicPreview_Paint(object? sender, PaintEventArgs e)
         {
-            if (previewPoints.Count == 0) return;
-
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             
+            // Draw working area box (4:3 aspect ratio to match 200x150mm physical workspace)
+            float workingAreaWidth = picPreview.Width - 40; // 20px padding on each side
+            float workingAreaHeight = workingAreaWidth * (150f / 200f);
+            
+            if (workingAreaHeight > picPreview.Height - 40)
+            {
+                workingAreaHeight = picPreview.Height - 40;
+                workingAreaWidth = workingAreaHeight * (200f / 150f);
+            }
+
+            float offsetX = (picPreview.Width - workingAreaWidth) / 2f;
+            float offsetY = (picPreview.Height - workingAreaHeight) / 2f;
+            
+            // Draw physical boundaries
+            g.DrawRectangle(Pens.Black, offsetX, offsetY, workingAreaWidth, workingAreaHeight);
+            g.DrawString("Physical Working Area (200x150mm)", this.Font, Brushes.Gray, offsetX, offsetY - 15);
+
+            if (previewPoints.Count == 0) return;
+
             Pen drawPen = new Pen(Color.Blue, 2f);
             Pen transitPen = new Pen(Color.LightGray, 1f) { DashStyle = DashStyle.Dash };
             Brush startNodeBrush = Brushes.Green;
             Brush drawNodeBrush = Brushes.Red;
-
-            // Offset to draw text comfortably within the PictureBox
-            float offsetX = 50f;
-            float offsetY = 50f;
 
             PointF? lastDrawPoint = null;
             PointF? lastAbsolutePoint = null;
 
             for (int i = 0; i < previewPoints.Count; i++)
             {
-                // Offset the pixel points to center them roughly
-                PointF p = new PointF(previewPoints[i].X + offsetX, previewPoints[i].Y + offsetY);
+                // Scale u, v directly into the working area bounds
+                float u = previewPoints[i].X;
+                float v = previewPoints[i].Y;
+                
+                PointF p = new PointF(offsetX + u * workingAreaWidth, offsetY + v * workingAreaHeight);
                 byte type = previewTypes[i];
 
                 if (type == 0) // Start

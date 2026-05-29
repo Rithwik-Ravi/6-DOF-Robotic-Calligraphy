@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RobotCalligraphyApp")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+05478c34ba5600f0ce14e3a9be4e9bc07a37da10")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+65a1bf24c6ff37d15f3e159dc24cbd37bc4bf873")]
 [assembly: System.Reflection.AssemblyProductAttribute("RobotCalligraphyApp")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RobotCalligraphyApp")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

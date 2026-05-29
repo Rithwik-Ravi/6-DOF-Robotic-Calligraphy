@@ -20,8 +20,13 @@ Real-time robotic calligraphy using a Mitsubishi RV-8CRL-D arm + CR800 controlle
 ### 🖼️ Image-to-Toolpath Vectorization
 - **Emgu.CV Integration:** Converts any raster image (`.jpg`, `.png`) directly into a robotic toolpath.
 - **Alpha Compositing:** Perfectly flattens transparent PNGs onto a white background to prevent edge-detection loss.
+- **Ramer-Douglas-Peucker Compression:** Drastically reduces dense pixel-level jaggedness by approximating smooth polygons and discarding intermediate points, controlled by a dynamic `epsilonFactor`.
 - **Path Optimization:** Uses a Nearest Neighbor sorting algorithm on the extracted contours to minimize the robot's "air time" (jumping between lines).
-- **Auto-Scaling:** Proportional scaling maps the image pixels perfectly to the robot's physical Cartesian workspace envelope (e.g., 200x150mm), strictly obeying safety limits.
+- **Auto-Scaling & Bounding Box:** Proportional scaling maps the image pixels perfectly to the robot's physical Cartesian workspace envelope (200x150mm), strictly obeying safety limits.
+
+### 🖥️ Enhanced UI & Visualization
+- **Side-by-Side View:** The UI now displays the uploaded original raster image directly next to the generated robotic toolpath preview for easy comparison.
+- **Physical Bounding Box:** The toolpath preview dynamically renders a bounding box scaled precisely to the 4:3 (200x150mm) physical workspace, ensuring you know exactly where the robot will draw and that it will never exceed frame limits.
 
 ### ⚡ Execution & Control
 - **Optimized Toolpaths:** Reduced Z-axis lift-off transit height (5mm vs 20mm) and increased controller speed overrides (`Ovrd 50`, `Spd 300`) for significantly faster writing.
