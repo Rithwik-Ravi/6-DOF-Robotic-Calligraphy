@@ -32,8 +32,8 @@ namespace RobotCalligraphyApp
             if (_writer == null || _reader == null || !IsConnected)
                 throw new InvalidOperationException("Not connected to the robot.");
 
-            // 1. Send command terminated by pure CR (Simulator Default)
-            await _writer.WriteAsync("\"" + command + "\"\r");
+            // 1. Send command terminated by pure CR (Data Link mode, Packet Type: CR)
+            await _writer.WriteAsync(command + "\r");
             await _writer.FlushAsync();
 
             // 2. Read response manually until CR (bypassing Windows ReadLine \n requirement)

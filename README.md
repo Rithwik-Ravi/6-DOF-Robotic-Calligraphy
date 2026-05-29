@@ -8,6 +8,27 @@ Real-time robotic calligraphy using a Mitsubishi RV-8CRL-D arm + CR800 controlle
 
 ---
 
+## ✨ Key Features Added
+
+### 🖋️ Dynamic Typography Engine
+- **3 Font Styles:**
+  - **Block:** Angular, geometric letterforms.
+  - **Rounded:** Smooth curves for C, D, O, S, U, etc.
+  - **Italic:** Programmatic on-the-fly shear transform applied to the base font geometry.
+- **Advanced Text Layout:** Multi-line text wrapping with automatic spacing. The final line is centered, while previous lines are evenly justified to fill the physical workspace width.
+
+### 🖼️ Image-to-Toolpath Vectorization
+- **Emgu.CV Integration:** Converts any raster image (`.jpg`, `.png`) directly into a robotic toolpath.
+- **Alpha Compositing:** Perfectly flattens transparent PNGs onto a white background to prevent edge-detection loss.
+- **Path Optimization:** Uses a Nearest Neighbor sorting algorithm on the extracted contours to minimize the robot's "air time" (jumping between lines).
+- **Auto-Scaling:** Proportional scaling maps the image pixels perfectly to the robot's physical Cartesian workspace envelope (e.g., 200x150mm), strictly obeying safety limits.
+
+### ⚡ Execution & Control
+- **Optimized Toolpaths:** Reduced Z-axis lift-off transit height (5mm vs 20mm) and increased controller speed overrides (`Ovrd 50`, `Spd 300`) for significantly faster writing.
+- **Live Control:** Asynchronous `CancellationTokenSource` allows instant **Pause** and **Stop** commands during live TCP streaming. Hitting Stop safely returns the robot to its home position.
+
+---
+
 ## 🚀 Architecture
 
 ```
@@ -171,10 +192,12 @@ MOV; -500.00;  850.00;  126.55\r
 ## 🔮 Next Steps
 
 ### Phase 1: Continuous Calligraphy Streaming
-- [ ] Stream full vector font toolpath from C# app to physical robot
-- [ ] Verify `ACK`-gated flow control at 20% override speed
-- [ ] Tune `Ovrd` and `Spd` parameters for smooth pen strokes
-- [ ] Add pen-up / pen-down Z-axis logic for letter spacing
+- [x] Stream full vector font toolpath from C# app to physical robot
+- [x] Verify `ACK`-gated flow control at 20% override speed
+- [x] Tune `Ovrd` and `Spd` parameters for smooth pen strokes
+- [x] Add pen-up / pen-down Z-axis logic for letter spacing
+- [x] Implement multi-line text layout and justification
+- [x] Integrate Emgu.CV for custom image/logo vectorization
 
 ### Phase 2: 3D Printing / Additive Manufacturing
 - [ ] Extend coordinate system to include Z-layer slicing
