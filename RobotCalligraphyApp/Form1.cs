@@ -337,8 +337,9 @@ namespace RobotCalligraphyApp
                 return;
             }
 
-            // Expose min contour area variable for easy tuning
+            // Tuning variables
             double minContourArea = 0.0; // Increase this to filter out noise, keep low so small text characters are not discarded.
+            double epsilonFactor = 0.005; // Increase -> more aggressive point reduction (blockier/faster). Decrease -> retains more points (smoother/slower).
 
             waypoints.Clear();
             previewPoints.Clear();
@@ -377,16 +378,23 @@ namespace RobotCalligraphyApp
                             // 5. Find Contours
                             CvInvoke.FindContours(edges, contours, hierarchy, RetrType.List, ChainApproxMethod.ChainApproxSimple);
 
-                            // Extract to C# arrays and apply contour area filter
+                            // Extract to C# arrays, approximate polygons (reduce point density), and apply contour area filter
                             List<Point[]> allContours = new List<Point[]>();
                             for (int i = 0; i < contours.Size; i++)
                             {
-                                var pts = contours[i].ToArray();
                                 double area = CvInvoke.ContourArea(contours[i], false);
                                 
-                                if (pts.Length > 1 && area >= minContourArea)
+                                // Point reduction via Ramer-Douglas-Peucker algorithm
+                                double perimeter = CvInvoke.ArcLength(contours[i], false);
+                                using (VectorOfPoint approxContour = new VectorOfPoint())
                                 {
-                                    allContours.Add(pts);
+                                    CvInvoke.ApproxPolyDP(contours[i], approxContour, perimeter * epsilonFactor, false);
+                                    
+                                    var pts = approxContour.ToArray();
+                                    if (pts.Length > 1 && area >= minContourArea)
+                                    {
+                                        allContours.Add(pts);
+                                    }
                                 }
                             }
 
