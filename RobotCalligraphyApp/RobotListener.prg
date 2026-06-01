@@ -1,6 +1,7 @@
-Ovrd 50
-Spd 300
-P3 = (-586.18, +783.00, +182.01, +177.94, +0.35, +119.72)(7,1048576)
+Ovrd 100
+Spd 800
+CNT 1
+P3 = (-581.59, +773.48, +150.00, +179.47, +0.04, +127.18)(7,1048576)
 OPEN "COM2:" AS #1
 
 ' Wait endlessly until a client actually connects!
@@ -21,13 +22,15 @@ If M_Open(1) = 0 Then GoTo *WAITCONN
     P2.Y = Val(C4$)
     P2.Z = Val(C5$)
     
+    ' Send ACK *before* moving to hide network latency!
+    ' The next point will buffer while the robot is moving.
+    Print #1, "ACK"
+
     If C2$ = "MOV" Then
         MOV P2
     ElseIf C2$ = "MVS" Then
         MVS P2
     EndIf
-
-    Print #1, "ACK"
 GoTo *LOOP
 
 *QUIT

@@ -19,6 +19,7 @@ Real-time robotic calligraphy using a Mitsubishi RV-8CRL-D arm + CR800 controlle
 
 ### 🖼️ Image-to-Toolpath Vectorization
 - **Emgu.CV Integration:** Converts any raster image (`.jpg`, `.png`) directly into a robotic toolpath.
+- **Pencil Sketch (Adaptive Thresholding):** Specifically tuned for portraits and photographs, replacing global edge detection with localized contrast blocks (`BlockSize=21`) to perfectly trace soft facial features (eyes, nose, mouth) without blowing out shadows.
 - **Alpha Compositing:** Perfectly flattens transparent PNGs onto a white background to prevent edge-detection loss.
 - **Ramer-Douglas-Peucker Compression:** Drastically reduces dense pixel-level jaggedness by approximating smooth polygons and discarding intermediate points, controlled by a dynamic `epsilonFactor`.
 - **Path Optimization:** Uses a Nearest Neighbor sorting algorithm on the extracted contours to minimize the robot's "air time" (jumping between lines).
@@ -27,9 +28,12 @@ Real-time robotic calligraphy using a Mitsubishi RV-8CRL-D arm + CR800 controlle
 ### 🖥️ Enhanced UI & Visualization
 - **Side-by-Side View:** The UI now displays the uploaded original raster image directly next to the generated robotic toolpath preview for easy comparison.
 - **Physical Bounding Box:** The toolpath preview dynamically renders a bounding box scaled precisely to the 4:3 (200x150mm) physical workspace, ensuring you know exactly where the robot will draw and that it will never exceed frame limits.
+- **Live Robotic Tracking:** As the robot draws, a highly-visible orange tracking indicator renders in real-time directly over the vectorized image, perfectly mapped to the physical location of the end-effector.
+- **Dynamic ETA & Progress:** Automatically calculates the estimated time of completion and tracks progress percentage live using high-precision network execution telemetry.
 
 ### ⚡ Execution & Control
-- **Optimized Toolpaths:** Reduced Z-axis lift-off transit height (5mm vs 20mm) and increased controller speed overrides (`Ovrd 50`, `Spd 300`) for significantly faster writing.
+- **Optimized Toolpaths:** Reduced Z-axis lift-off transit height (5mm vs 20mm) and increased controller speed overrides (`Ovrd 100`, `Spd 800`) for significantly faster writing.
+- **Zero-Latency Streaming Protocol:** By moving the `ACK` handshake *before* physical motion, the robot hides all TCP/IP network latency while combining with Continuous Interpolation (`CNT 1`) for perfectly blended, non-stop drawing at high speeds!
 - **Live Control:** Asynchronous `CancellationTokenSource` allows instant **Pause** and **Stop** commands during live TCP streaming. Hitting Stop safely returns the robot to its home position.
 
 ---

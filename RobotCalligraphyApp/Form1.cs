@@ -17,12 +17,14 @@ namespace RobotCalligraphyApp
         public float X;
         public float Y;
         public float Z;
+        public PointF UV;
 
-        public RoboticWaypoint(float x, float y, float z)
+        public RoboticWaypoint(float x, float y, float z, PointF uv)
         {
             X = x;
             Y = y;
             Z = z;
+            UV = uv;
         }
 
         public override string ToString()
@@ -61,6 +63,9 @@ namespace RobotCalligraphyApp
         // Execution Control
         private CancellationTokenSource? executionCts;
         private bool isPaused = false;
+        private RoboticWaypoint? currentRobotWaypoint = null;
+        private Label lblProgress = null!;
+        private Label lblETA = null!;
         
         // Data Storage
         private List<RoboticWaypoint> waypoints = new List<RoboticWaypoint>();
@@ -252,6 +257,8 @@ namespace RobotCalligraphyApp
             btnExport.Click += BtnExport_Click;
 
             lblConnectionStatus = new Label() { Text = "Disconnected", Location = new Point(755, 78), AutoSize = true, ForeColor = Color.Red };
+            lblProgress = new Label() { Text = "Progress: 0%", Location = new Point(850, 78), AutoSize = true, ForeColor = Color.Blue };
+            lblETA = new Label() { Text = "ETA: --:--", Location = new Point(980, 78), AutoSize = true, ForeColor = Color.Blue };
 
             // === ROW 3: Image Vectorization ===
             btnLoadImage = new Button() { Text = "Load Image", Location = new Point(10, 105), Width = 100 };
@@ -314,6 +321,8 @@ namespace RobotCalligraphyApp
             this.Controls.Add(btnStop);
             this.Controls.Add(btnExport);
             this.Controls.Add(lblConnectionStatus);
+            this.Controls.Add(lblProgress);
+            this.Controls.Add(lblETA);
             this.Controls.Add(btnLoadImage);
             this.Controls.Add(txtImagePath);
             this.Controls.Add(lblImageWidth);
@@ -352,8 +361,8 @@ namespace RobotCalligraphyApp
             }
 
             // Tuning variables
-            double minContourArea = 0.0; // Increase this to filter out noise, keep low so small text characters are not discarded.
-            double epsilonFactor = 0.005; // Increase -> more aggressive point reduction (blockier/faster). Decrease -> retains more points (smoother/slower).
+            double minContourArea = 5.0; // Increased to filter out small noise specks
+            double epsilonFactor = 0.005; // Retain current smoothing factor
 
             waypoints.Clear();
             previewPoints.Clear();
@@ -383,12 +392,19 @@ namespace RobotCalligraphyApp
 
                     // 3. Convert to Grayscale
                     using (Image<Gray, byte> grayImg = flattenedImg.Convert<Gray, byte>())
+                    using (Image<Gray, byte> blurredImg = new Image<Gray, byte>(grayImg.Width, grayImg.Height))
                     {
-                        // 4. Canny Edge Detection (Hardcoded thresholds for now: 100, 200)
-                        using (Image<Gray, byte> edges = grayImg.Canny(100, 200))
+                        // 3.5 Pre-processing: Gaussian Blur for noise reduction
+                        CvInvoke.GaussianBlur(grayImg, blurredImg, new Size(5, 5), 0);
+
+                        // 4. Adaptive Thresholding (Pencil Sketch Algorithm)
+                        using (Image<Gray, byte> edges = new Image<Gray, byte>(blurredImg.Width, blurredImg.Height))
                         using (VectorOfVectorOfPoint contours = new VectorOfVectorOfPoint())
                         using (Mat hierarchy = new Mat())
                         {
+                            // Create a binary image where lines are white (255)
+                            CvInvoke.AdaptiveThreshold(blurredImg, edges, 255, AdaptiveThresholdType.GaussianC, ThresholdType.BinaryInv, 21, 5);
+
                             // 5. Find Contours
                             CvInvoke.FindContours(edges, contours, hierarchy, RetrType.List, ChainApproxMethod.ChainApproxSimple);
 
@@ -430,13 +446,13 @@ namespace RobotCalligraphyApp
                             float scaleU = targetWidthMm / imgWidth;
                             
                             // Physical Constraints
-                            float drawZ = 120.00f;  // Pen-down height
-                            float transitZ = 125.00f;  // Pen-up height
+                            float drawZ = 118.00f;  // Pen-down height
+                            float transitZ = 123.00f;  // Pen-up height
                             
                             // Bounding Box setup (same as text, centered)
-                            PointF p1a = new PointF(-486.18f, 883.00f);   // Top-left
-                            PointF p2a = new PointF(-486.18f, 683.00f);   // Top-right
-                            PointF p4a = new PointF(-636.18f, 883.00f);   // Bottom-left
+                            PointF p1a = new PointF(-506.59f, 873.48f);   // Top-left
+                            PointF p2a = new PointF(-506.59f, 673.48f);   // Top-right
+                            PointF p4a = new PointF(-656.59f, 873.48f);   // Bottom-left
 
                             float dxW = p2a.X - p1a.X;
                             float dyW = p2a.Y - p1a.Y;
@@ -496,13 +512,13 @@ namespace RobotCalligraphyApp
 
                                     if (pt == 0) // Start of contour
                                     {
-                                        waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ));
-                                        waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ));
+                                        waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ, new PointF(u, v)));
+                                        waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ, new PointF(u, v)));
                                         previewTypes.Add(0); // Start marker
                                     }
                                     else
                                     {
-                                        waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ));
+                                        waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ, new PointF(u, v)));
                                         previewTypes.Add(1); // Line marker
                                     }
                                     
@@ -520,7 +536,7 @@ namespace RobotCalligraphyApp
                                     float v = startV + normY * targetV_Span;
                                     float xRobot = p1a.X + u * dxW + v * dxH;
                                     float yRobot = p1a.Y + u * dyW + v * dyH;
-                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ));
+                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ, new PointF(u, v)));
                                 }
                             }
 
@@ -658,9 +674,9 @@ namespace RobotCalligraphyApp
                 // Use standard P3 variable for Home Position to avoid declaration errors
                 // Restored the exact physical coordinates and posture flags (7,1048576) 
                 // so the real robot doesn't violently unwind its wrist!
-                sw.WriteLine("P3 = (-586.18, +783.00, +182.01, +177.94, +0.35, +119.72)(7,1048576)");
+                sw.WriteLine("P3 = (-581.59, +773.48, +150.00, +179.47, +0.04, +127.18)(7,1048576)");
                 sw.WriteLine("MOV P3");
-                sw.WriteLine("P1 = (-643.160, +866.620, +117.830, +177.940, +0.350, +119.720)(7,1048576)");
+                sw.WriteLine("P1 = (-506.59, +873.48, +118.00, +179.47, +0.04, +127.18)(7,1048576)");
                 sw.WriteLine("CNT 1");
                 bool isFirstMove = true;
                 foreach (var wp in waypoints)
@@ -709,11 +725,16 @@ namespace RobotCalligraphyApp
                 var token = executionCts.Token;
 
                 // Home Position (matches P3 in RobotListener.prg)
-                string pHomeStr = "MOV; -586.18;  783.00;  182.01";
+                string pHomeStr = "MOV; -581.59;  773.48;  150.00";
                 string? resp = await robotClient.SendAsync(pHomeStr);
                 if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot did not acknowledge home move. Response: {resp}");
 
                 bool isFirstMove = true;
+                int totalPoints = waypoints.Count;
+                int pointsExecuted = 0;
+                System.Diagnostics.Stopwatch uiSw = System.Diagnostics.Stopwatch.StartNew();
+                System.Diagnostics.Stopwatch totalSw = System.Diagnostics.Stopwatch.StartNew();
+
                 foreach (var wp in waypoints)
                 {
                     // Check for cancellation
@@ -732,7 +753,31 @@ namespace RobotCalligraphyApp
                     resp = await robotClient.SendAsync(pt);
                     if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot streaming interrupted. Response: {resp}");
                     
+                    pointsExecuted++;
                     isFirstMove = false;
+
+                    // Update UI (throttled to ~10 FPS)
+                    if (uiSw.ElapsedMilliseconds > 100 || pointsExecuted == totalPoints)
+                    {
+                        currentRobotWaypoint = wp;
+                        uiSw.Restart();
+
+                        double elapsedMs = totalSw.ElapsedMilliseconds;
+                        double msPerPoint = elapsedMs / pointsExecuted;
+                        double msRemaining = msPerPoint * (totalPoints - pointsExecuted);
+                        TimeSpan timeRemaining = TimeSpan.FromMilliseconds(msRemaining);
+                        int pct = (int)((pointsExecuted / (float)totalPoints) * 100);
+
+                        // Ensure we update on the UI thread
+                        if (this.IsHandleCreated)
+                        {
+                            this.Invoke((MethodInvoker)delegate {
+                                lblProgress.Text = $"Progress: {pct}% ({pointsExecuted}/{totalPoints})";
+                                lblETA.Text = $"ETA: {timeRemaining.ToString(@"mm\:ss")}";
+                                picPreview.Invalidate();
+                            });
+                        }
+                    }
                 }
 
                 // Return Home
@@ -747,7 +792,7 @@ namespace RobotCalligraphyApp
                 {
                     if (robotClient.IsConnected)
                     {
-                        string pHomeStr = "MOV; -586.18;  783.00;  182.01";
+                        string pHomeStr = "MOV; -581.59;  773.48;  150.00";
                         await robotClient.SendAsync(pHomeStr);
                     }
                 }
@@ -764,6 +809,16 @@ namespace RobotCalligraphyApp
                 executionCts?.Dispose();
                 executionCts = null;
                 isPaused = false;
+                currentRobotWaypoint = null;
+                
+                if (this.IsHandleCreated && !this.IsDisposed)
+                {
+                    this.Invoke((MethodInvoker)delegate {
+                        lblProgress.Text = "Progress: 0%";
+                        lblETA.Text = "ETA: --:--";
+                        picPreview.Invalidate();
+                    });
+                }
 
                 btnStop.Enabled = false;
                 btnPause.Enabled = false;
@@ -820,14 +875,14 @@ namespace RobotCalligraphyApp
             }
 
             // Physical Constraints for RV-8CRL Physical Robot
-            float drawZ = 120.00f;  // Pen-down height (touching surface)
-            float transitZ = 125.00f;  // Pen-up height (minimal 5mm lift for speed)
+            float drawZ = 118.00f;  // Pen-down height (touching surface)
+            float transitZ = 123.00f;  // Pen-up height (minimal 5mm lift for speed)
             
             // Drawing area near the robot's home position
             // 200mm wide x 150mm tall rectangle
-            PointF p1a = new PointF(-486.18f, 883.00f);   // Top-left corner
-            PointF p2a = new PointF(-486.18f, 683.00f);   // Top-right corner (width direction along -Y)
-            PointF p4a = new PointF(-636.18f, 883.00f);   // Bottom-left corner (height direction along -X)
+            PointF p1a = new PointF(-506.59f, 873.48f);   // Top-left corner
+            PointF p2a = new PointF(-506.59f, 673.48f);   // Top-right corner (width direction along -Y)
+            PointF p4a = new PointF(-656.59f, 873.48f);   // Bottom-left corner (height direction along -X)
 
             // Orthogonal Vector Math (Fixes the slant!)
             float dxW = p2a.X - p1a.X;
@@ -985,13 +1040,13 @@ namespace RobotCalligraphyApp
 
                                 if (pt == 0) // Start of stroke: transit down
                                 {
-                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ));
-                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ));
+                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ, new PointF(u, v)));
+                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ, new PointF(u, v)));
                                     previewTypes.Add(0); // Start marker
                                 }
                                 else // Continue drawing
                                 {
-                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ));
+                                    waypoints.Add(new RoboticWaypoint(xRobot, yRobot, drawZ, new PointF(u, v)));
                                     previewTypes.Add(1); // Line marker
                                 }
 
@@ -1011,7 +1066,7 @@ namespace RobotCalligraphyApp
                                 float v = charStartV + lsy * charV;
                                 float xRobot = p1a.X + u * dxW + v * dxH;
                                 float yRobot = p1a.Y + u * dyW + v * dyH;
-                                waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ));
+                                waypoints.Add(new RoboticWaypoint(xRobot, yRobot, transitZ, new PointF(u, v)));
                             }
                         }
 
@@ -1102,6 +1157,19 @@ namespace RobotCalligraphyApp
                 }
 
                 lastAbsolutePoint = p;
+            }
+
+            // Draw Real-time position tracking indicator
+            if (currentRobotWaypoint.HasValue)
+            {
+                float u = currentRobotWaypoint.Value.UV.X;
+                float v = currentRobotWaypoint.Value.UV.Y;
+                float px = offsetX + u * workingAreaWidth;
+                float py = offsetY + v * workingAreaHeight;
+
+                // Draw a prominent orange circle
+                g.DrawEllipse(new Pen(Color.DarkOrange, 3f), px - 8, py - 8, 16, 16);
+                g.FillEllipse(Brushes.Orange, px - 4, py - 4, 8, 8);
             }
         }
     }
