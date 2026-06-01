@@ -362,7 +362,7 @@ namespace RobotCalligraphyApp
 
             // Tuning variables
             double minContourArea = 5.0; // Increased to filter out small noise specks
-            double epsilonFactor = 0.005; // Retain current smoothing factor
+            double epsilonFactor = 0.0005; // Drastically reduced to preserve smooth curves (mustache fix)
 
             waypoints.Clear();
             previewPoints.Clear();
@@ -405,7 +405,10 @@ namespace RobotCalligraphyApp
                             // Create a binary image where lines are white (255)
                             CvInvoke.AdaptiveThreshold(blurredImg, edges, 255, AdaptiveThresholdType.GaussianC, ThresholdType.BinaryInv, 21, 5);
 
-                            // 5. Find Contours
+                            // Apply Zhang-Suen morphological thinning to reduce strokes to a 1-pixel skeleton
+                            ZhangSuenThinning(edges);
+
+                            // 5. Find Contours (now tracing a 1-pixel skeleton instead of thick edges)
                             CvInvoke.FindContours(edges, contours, hierarchy, RetrType.List, ChainApproxMethod.ChainApproxSimple);
 
                             // Extract to C# arrays, approximate polygons (reduce point density), and apply contour area filter
@@ -541,6 +544,73 @@ namespace RobotCalligraphyApp
                             }
 
                             picPreview.Invalidate();
+                        }
+                    }
+                }
+            }
+        }
+
+        private unsafe void ZhangSuenThinning(Image<Gray, byte> img)
+        {
+            int width = img.Width;
+            int height = img.Height;
+            int stride = img.Mat.Step;
+            byte* data = (byte*)img.Mat.DataPointer;
+
+            bool hasChanged = true;
+            List<Point> toRemove = new List<Point>();
+
+            while (hasChanged)
+            {
+                hasChanged = false;
+
+                // Two sub-iterations
+                for (int step = 0; step < 2; step++)
+                {
+                    toRemove.Clear();
+                    for (int y = 1; y < height - 1; y++)
+                    {
+                        for (int x = 1; x < width - 1; x++)
+                        {
+                            if (data[y * stride + x] == 255) // foreground pixel
+                            {
+                                int p2 = data[(y - 1) * stride + x] == 255 ? 1 : 0;
+                                int p3 = data[(y - 1) * stride + (x + 1)] == 255 ? 1 : 0;
+                                int p4 = data[y * stride + (x + 1)] == 255 ? 1 : 0;
+                                int p5 = data[(y + 1) * stride + (x + 1)] == 255 ? 1 : 0;
+                                int p6 = data[(y + 1) * stride + x] == 255 ? 1 : 0;
+                                int p7 = data[(y + 1) * stride + (x - 1)] == 255 ? 1 : 0;
+                                int p8 = data[y * stride + (x - 1)] == 255 ? 1 : 0;
+                                int p9 = data[(y - 1) * stride + (x - 1)] == 255 ? 1 : 0;
+
+                                int A = (p2 == 0 && p3 == 1 ? 1 : 0) +
+                                        (p3 == 0 && p4 == 1 ? 1 : 0) +
+                                        (p4 == 0 && p5 == 1 ? 1 : 0) +
+                                        (p5 == 0 && p6 == 1 ? 1 : 0) +
+                                        (p6 == 0 && p7 == 1 ? 1 : 0) +
+                                        (p7 == 0 && p8 == 1 ? 1 : 0) +
+                                        (p8 == 0 && p9 == 1 ? 1 : 0) +
+                                        (p9 == 0 && p2 == 1 ? 1 : 0);
+
+                                int B = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
+
+                                int m1 = step == 0 ? (p2 * p4 * p6) : (p2 * p4 * p8);
+                                int m2 = step == 0 ? (p4 * p6 * p8) : (p2 * p6 * p8);
+
+                                if (A == 1 && (B >= 2 && B <= 6) && m1 == 0 && m2 == 0)
+                                {
+                                    toRemove.Add(new Point(x, y));
+                                }
+                            }
+                        }
+                    }
+
+                    if (toRemove.Count > 0)
+                    {
+                        hasChanged = true;
+                        foreach (Point p in toRemove)
+                        {
+                            data[p.Y * stride + p.X] = 0;
                         }
                     }
                 }
@@ -725,7 +795,7 @@ namespace RobotCalligraphyApp
                 var token = executionCts.Token;
 
                 // Home Position (matches P3 in RobotListener.prg)
-                string pHomeStr = "MOV; -581.59;  773.48;  150.00";
+                string pHomeStr = "MVS; -581.59;  773.48;  150.00";
                 string? resp = await robotClient.SendAsync(pHomeStr);
                 if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot did not acknowledge home move. Response: {resp}");
 
@@ -792,7 +862,7 @@ namespace RobotCalligraphyApp
                 {
                     if (robotClient.IsConnected)
                     {
-                        string pHomeStr = "MOV; -581.59;  773.48;  150.00";
+                        string pHomeStr = "MVS; -581.59;  773.48;  150.00";
                         await robotClient.SendAsync(pHomeStr);
                     }
                 }

@@ -1,6 +1,9 @@
-Ovrd 100
-Spd 800
-CNT 1
+' ========================================================
+' TASK 1: NETWORK LISTENER (PRODUCER)
+' ========================================================
+M1 = 1 ' Head Index (1 to 10)
+M2 = 1 ' Tail Index (1 to 10)
+
 P3 = (-581.59, +773.48, +150.00, +179.47, +0.04, +127.18)(7,1048576)
 OPEN "COM2:" AS #1
 
@@ -17,20 +20,72 @@ If M_Open(1) = 0 Then GoTo *WAITCONN
     C4$ = Mid$(C1$, 14, 8)
     C5$ = Mid$(C1$, 23, 8)
 
-    P2 = P3
-    P2.X = Val(C3$)
-    P2.Y = Val(C4$)
-    P2.Z = Val(C5$)
+    P11 = P3
+    P11.X = Val(C3$)
+    P11.Y = Val(C4$)
+    P11.Z = Val(C5$)
     
-    ' Send ACK *before* moving to hide network latency!
-    ' The next point will buffer while the robot is moving.
-    Print #1, "ACK"
-
     If C2$ = "MOV" Then
-        MOV P2
-    ElseIf C2$ = "MVS" Then
-        MVS P2
+        M21 = 0
+    Else
+        M21 = 1
     EndIf
+    
+    ' Calculate Next Head
+    M3 = M1 + 1
+    If M3 > 10 Then M3 = 1
+    
+    ' Flow Control: Wait if buffer is full!
+    *WAITSPACE
+    If M3 = M2 Then GoTo *WAITSPACE
+
+    ' Store Coordinate and Command in Global Variables (P1-P10, M11-M20)
+    If M1 = 1 Then 
+        P1 = P11
+        M11 = M21
+    EndIf
+    If M1 = 2 Then 
+        P2 = P11
+        M12 = M21
+    EndIf
+    If M1 = 3 Then 
+        P3 = P11
+        M13 = M21
+    EndIf
+    If M1 = 4 Then 
+        P4 = P11
+        M14 = M21
+    EndIf
+    If M1 = 5 Then 
+        P5 = P11
+        M15 = M21
+    EndIf
+    If M1 = 6 Then 
+        P6 = P11
+        M16 = M21
+    EndIf
+    If M1 = 7 Then 
+        P7 = P11
+        M17 = M21
+    EndIf
+    If M1 = 8 Then 
+        P8 = P11
+        M18 = M21
+    EndIf
+    If M1 = 9 Then 
+        P9 = P11
+        M19 = M21
+    EndIf
+    If M1 = 10 Then 
+        P10 = P11
+        M20 = M21
+    EndIf
+    
+    ' Advance Head
+    M1 = M3
+    
+    ' Send ACK back to C# Client
+    Print #1, "ACK"
 GoTo *LOOP
 
 *QUIT
