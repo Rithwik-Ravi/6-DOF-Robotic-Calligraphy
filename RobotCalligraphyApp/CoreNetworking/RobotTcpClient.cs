@@ -3,8 +3,9 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using RobotCalligraphyApp.ToolpathEngine;
 
-namespace RobotCalligraphyApp
+namespace RobotCalligraphyApp.CoreNetworking
 {
     public class RobotTcpClient : IDisposable
     {
@@ -45,6 +46,20 @@ namespace RobotCalligraphyApp
                 if (buffer[0] != '\n') sb.Append(buffer[0]);
             }
             return sb.ToString();
+        }
+
+        public async Task<string?> SendHomeAsync()
+        {
+            // P3 Home Position in RobotListener.prg
+            string pHomeStr = "MVS; -581.59;  773.48;  150.00";
+            return await SendAsync(pHomeStr);
+        }
+
+        public async Task<string?> SendWaypointAsync(RoboticWaypoint wp, bool isFirstMove)
+        {
+            string commandType = isFirstMove ? "MOV" : "MVS";
+            string pt = $"{commandType};{wp.X,8:F2};{wp.Y,8:F2};{wp.Z,8:F2}";
+            return await SendAsync(pt);
         }
 
         public void Disconnect()
