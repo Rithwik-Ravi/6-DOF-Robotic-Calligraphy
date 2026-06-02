@@ -59,6 +59,8 @@ namespace RobotCalligraphyApp
         private TextBox txtImagePath = null!;
         private NumericUpDown numImageWidth = null!;
         private PictureBox picOriginal = null!;
+        private TrackBar tbDetail = null!;
+        private Label lblDetail = null!;
 
         // Execution Control
         private CancellationTokenSource? executionCts;
@@ -280,6 +282,19 @@ namespace RobotCalligraphyApp
             btnVectorize = new Button() { Text = "Vectorize Image", Location = new Point(620, 105), Width = 120, Enabled = false };
             btnVectorize.Click += BtnVectorize_Click;
 
+            lblDetail = new Label() { Text = "Detail Level:", Location = new Point(750, 110), AutoSize = true };
+            tbDetail = new TrackBar()
+            {
+                Location = new Point(830, 105),
+                Width = 150,
+                Minimum = 1,
+                Maximum = 100,
+                Value = 20, // Value of 20 = 0.0005 epsilon (original value)
+                TickFrequency = 10
+            };
+            // Dynamically re-vectorize when slider changes to provide real-time preview
+            tbDetail.Scroll += (s, e) => { if (btnVectorize.Enabled && !string.IsNullOrEmpty(txtImagePath.Text)) BtnVectorize_Click(null, EventArgs.Empty); };
+
             // === ORIGINAL IMAGE PICTUREBOX ===
             picOriginal = new PictureBox()
             {
@@ -328,6 +343,8 @@ namespace RobotCalligraphyApp
             this.Controls.Add(lblImageWidth);
             this.Controls.Add(numImageWidth);
             this.Controls.Add(btnVectorize);
+            this.Controls.Add(lblDetail);
+            this.Controls.Add(tbDetail);
             this.Controls.Add(picOriginal);
             this.Controls.Add(picPreview);
 
@@ -361,8 +378,12 @@ namespace RobotCalligraphyApp
             }
 
             // Tuning variables
-            double minContourArea = 5.0; // Increased to filter out small noise specks
-            double epsilonFactor = 0.0005; // Drastically reduced to preserve smooth curves (mustache fix)
+            double minContourArea = 5.0; // Minimum path length in pixels
+            
+            // Map the 1-100 slider to an absolute pixel distance for Ramer-Douglas-Peucker.
+            // Slider 100 (High Detail) -> 0.5 pixels deviation allowed (keeps more points).
+            // Slider 1 (Low Detail) -> 10.0 pixels deviation allowed (highly simplified).
+            double epsilonPixels = 0.5 + ((100 - tbDetail.Value) / 99.0) * 9.5;
 
             waypoints.Clear();
             previewPoints.Clear();
@@ -408,23 +429,22 @@ namespace RobotCalligraphyApp
                             // Apply Zhang-Suen morphological thinning to reduce strokes to a 1-pixel skeleton
                             ZhangSuenThinning(edges);
 
-                            // 5. Find Contours (now tracing a 1-pixel skeleton instead of thick edges)
-                            CvInvoke.FindContours(edges, contours, hierarchy, RetrType.List, ChainApproxMethod.ChainApproxSimple);
+                            // 5. Extract single-pass paths directly from the 1-pixel skeleton
+                            List<Point[]> rawPaths = ExtractSkeletonPaths(edges);
 
-                            // Extract to C# arrays, approximate polygons (reduce point density), and apply contour area filter
+                            // Reduce point density via Ramer-Douglas-Peucker algorithm
                             List<Point[]> allContours = new List<Point[]>();
-                            for (int i = 0; i < contours.Size; i++)
+                            foreach (var path in rawPaths)
                             {
-                                double area = CvInvoke.ContourArea(contours[i], false);
-                                
-                                // Point reduction via Ramer-Douglas-Peucker algorithm
-                                double perimeter = CvInvoke.ArcLength(contours[i], false);
+                                using (VectorOfPoint vp = new VectorOfPoint(path))
                                 using (VectorOfPoint approxContour = new VectorOfPoint())
                                 {
-                                    CvInvoke.ApproxPolyDP(contours[i], approxContour, perimeter * epsilonFactor, false);
+                                    double pathLength = CvInvoke.ArcLength(vp, false);
+                                    CvInvoke.ApproxPolyDP(vp, approxContour, epsilonPixels, false);
                                     
                                     var pts = approxContour.ToArray();
-                                    if (pts.Length > 1 && area >= minContourArea)
+                                    // Filter out very short noise segments using minContourArea as a length threshold
+                                    if (pts.Length > 1 && pathLength >= minContourArea)
                                     {
                                         allContours.Add(pts);
                                     }
@@ -544,10 +564,161 @@ namespace RobotCalligraphyApp
                             }
 
                             picPreview.Invalidate();
+                            
+                            // Update UI to show total points so user can see the effect of the detail slider
+                            if (this.IsHandleCreated)
+                            {
+                                this.Invoke((MethodInvoker)delegate {
+                                    lblProgress.Text = $"Points: {waypoints.Count} | Estimated Time: {(waypoints.Count * 0.025f):F1}s";
+                                    lblProgress.ForeColor = Color.DarkViolet;
+                                });
+                            }
                         }
                     }
                 }
             }
+        }
+
+        private unsafe List<Point[]> ExtractSkeletonPaths(Image<Gray, byte> img)
+        {
+            int width = img.Width;
+            int height = img.Height;
+            int stride = img.Mat.Step;
+            byte* data = (byte*)img.Mat.DataPointer;
+            
+            bool[,] visited = new bool[width, height];
+            List<Point[]> paths = new List<Point[]>();
+
+            List<Point> GetUnvisitedNeighbors(int cx, int cy)
+            {
+                List<Point> n = new List<Point>();
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        int nx = cx + dx;
+                        int ny = cy + dy;
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                        {
+                            if (data[ny * stride + nx] > 0 && !visited[nx, ny])
+                            {
+                                n.Add(new Point(nx, ny));
+                            }
+                        }
+                    }
+                }
+                return n;
+            }
+
+            List<Point> GetAllNeighbors(int cx, int cy)
+            {
+                List<Point> n = new List<Point>();
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        int nx = cx + dx;
+                        int ny = cy + dy;
+                        if (nx >= 0 && nx < width && ny >= 0 && ny < height)
+                        {
+                            if (data[ny * stride + nx] > 0)
+                            {
+                                n.Add(new Point(nx, ny));
+                            }
+                        }
+                    }
+                }
+                return n;
+            }
+
+            // Phase 1: Trace from Endpoints (pixels with exactly 1 neighbor)
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    if (data[y * stride + x] > 0 && !visited[x, y])
+                    {
+                        var allN = GetAllNeighbors(x, y);
+                        if (allN.Count == 1) // Endpoint
+                        {
+                            List<Point> stroke = new List<Point>();
+                            int cx = x, cy = y;
+                            
+                            while (true)
+                            {
+                                stroke.Add(new Point(cx, cy));
+                                visited[cx, cy] = true;
+
+                                var unvisitedN = GetUnvisitedNeighbors(cx, cy);
+                                if (unvisitedN.Count > 0)
+                                {
+                                    cx = unvisitedN[0].X;
+                                    cy = unvisitedN[0].Y;
+                                }
+                                else
+                                {
+                                    // Try to bridge 1-pixel gaps at intersections
+                                    var allNeighbors = GetAllNeighbors(cx, cy);
+                                    foreach(var n in allNeighbors)
+                                    {
+                                        if (visited[n.X, n.Y] && stroke.Count > 1 && (n.X != stroke[stroke.Count - 2].X || n.Y != stroke[stroke.Count - 2].Y))
+                                        {
+                                            stroke.Add(new Point(n.X, n.Y));
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                            if (stroke.Count > 1) paths.Add(stroke.ToArray());
+                        }
+                    }
+                }
+            }
+
+            // Phase 2: Trace remaining pixels (closed loops or isolated segments)
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    if (data[y * stride + x] > 0 && !visited[x, y])
+                    {
+                        List<Point> stroke = new List<Point>();
+                        int cx = x, cy = y;
+
+                        while (true)
+                        {
+                            stroke.Add(new Point(cx, cy));
+                            visited[cx, cy] = true;
+
+                            var unvisitedN = GetUnvisitedNeighbors(cx, cy);
+                            if (unvisitedN.Count > 0)
+                            {
+                                cx = unvisitedN[0].X;
+                                cy = unvisitedN[0].Y;
+                            }
+                            else
+                            {
+                                var allNeighbors = GetAllNeighbors(cx, cy);
+                                foreach(var n in allNeighbors)
+                                {
+                                    if (visited[n.X, n.Y] && stroke.Count > 1 && (n.X != stroke[stroke.Count - 2].X || n.Y != stroke[stroke.Count - 2].Y))
+                                    {
+                                        stroke.Add(new Point(n.X, n.Y));
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        if (stroke.Count > 1) paths.Add(stroke.ToArray());
+                    }
+                }
+            }
+
+            return paths;
         }
 
         private unsafe void ZhangSuenThinning(Image<Gray, byte> img)
@@ -803,7 +974,9 @@ namespace RobotCalligraphyApp
                 int totalPoints = waypoints.Count;
                 int pointsExecuted = 0;
                 System.Diagnostics.Stopwatch uiSw = System.Diagnostics.Stopwatch.StartNew();
-                System.Diagnostics.Stopwatch totalSw = System.Diagnostics.Stopwatch.StartNew();
+                
+                double emaMsPerPoint = 50.0; // Default assumption to start
+                System.Diagnostics.Stopwatch pointSw = new System.Diagnostics.Stopwatch();
 
                 foreach (var wp in waypoints)
                 {
@@ -819,11 +992,21 @@ namespace RobotCalligraphyApp
 
                     string commandType = isFirstMove ? "MOV" : "MVS";
                     string pt = $"{commandType};{wp.X,8:F2};{wp.Y,8:F2};{wp.Z,8:F2}";
-                    
+                    pointSw.Restart();
                     resp = await robotClient.SendAsync(pt);
+                    pointSw.Stop();
+                    
                     if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot streaming interrupted. Response: {resp}");
                     
                     pointsExecuted++;
+                    
+                    // Update Exponential Moving Average (ignore the first point as it gets an instant ACK)
+                    if (pointsExecuted > 1)
+                    {
+                        double currentMs = pointSw.ElapsedMilliseconds;
+                        emaMsPerPoint = (emaMsPerPoint * 0.9) + (currentMs * 0.1);
+                    }
+
                     isFirstMove = false;
 
                     // Update UI (throttled to ~10 FPS)
@@ -832,9 +1015,7 @@ namespace RobotCalligraphyApp
                         currentRobotWaypoint = wp;
                         uiSw.Restart();
 
-                        double elapsedMs = totalSw.ElapsedMilliseconds;
-                        double msPerPoint = elapsedMs / pointsExecuted;
-                        double msRemaining = msPerPoint * (totalPoints - pointsExecuted);
+                        double msRemaining = emaMsPerPoint * (totalPoints - pointsExecuted);
                         TimeSpan timeRemaining = TimeSpan.FromMilliseconds(msRemaining);
                         int pct = (int)((pointsExecuted / (float)totalPoints) * 100);
 
