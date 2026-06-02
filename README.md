@@ -11,12 +11,10 @@ Real-time robotic calligraphy using a Mitsubishi RV-8CRL-D arm + CR800 controlle
 ## 📸 Project Showcase
 
 ### Application UI
-<!-- Replace the link below with your actual UI screenshot -->
-![Application UI Placeholder](docs/images/ui_placeholder.png)
+![Application UI](UI.png)
 
 ### Robot in Action
-<!-- Replace the link below with your actual robot picture/gif -->
-![Robot Working Placeholder](docs/images/robot_placeholder.png)
+![Robot in Action](Physical_Implementation.jpeg)
 
 ---
 
