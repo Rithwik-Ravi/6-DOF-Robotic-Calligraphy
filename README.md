@@ -13,9 +13,6 @@ Real-time robotic calligraphy using a Mitsubishi RV-8CRL-D arm + CR800 controlle
 ### Application UI
 ![Application UI](UI.png)
 
-### Robot in Action
-![Robot in Action](Physical_Implementation.jpeg)
-
 ---
 
 ## 🚀 Clean Architecture (Strategy Pattern)

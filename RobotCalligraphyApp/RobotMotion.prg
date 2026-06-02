@@ -2,8 +2,7 @@
 ' TASK 2: MOTION EXECUTION (CONSUMER)
 ' ========================================================
 MvTune 3
-Ovrd 100
-Spd 800
+Spd 300
 
 ' ENABLE CONTINUOUS INTERPOLATION
 CNT 1
@@ -64,8 +63,10 @@ CNT 1
 
     ' Execute Motion
     If M21 = 0 Then
+        Ovrd 10
         MOV P11
     Else
+        Ovrd 100
         MVS P11
     EndIf
 

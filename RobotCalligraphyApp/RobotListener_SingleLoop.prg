@@ -1,8 +1,7 @@
 ' ========================================================
 ' LEGACY TASK 1: SINGLE-LOOP NETWORK LISTENER
 ' ========================================================
-Ovrd 100
-Spd 3000
+Spd 300
 CNT 0
 P3 = (-581.59, +773.48, +150.00, +179.47, +0.04, +127.18)(7,1048576)
 OPEN "COM2:" AS #1
@@ -30,8 +29,10 @@ If M_Open(1) = 0 Then GoTo *WAITCONN
     Print #1, "ACK"
 
     If C2$ = "MOV" Then
+        Ovrd 10
         MOV P2
     ElseIf C2$ = "MVS" Then
+        Ovrd 100
         MVS P2
     EndIf
 GoTo *LOOP
