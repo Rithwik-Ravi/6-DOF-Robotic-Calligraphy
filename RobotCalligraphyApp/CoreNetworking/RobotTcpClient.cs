@@ -62,6 +62,14 @@ namespace RobotCalligraphyApp.CoreNetworking
             return await SendAsync(pt);
         }
 
+        public async Task<string?> SendWaypoint6DOFAsync(RobotCalligraphyApp.Pipelines_3D.Core.RoboticWaypoint6DOF wp, bool isFirstMove)
+        {
+            string commandType = isFirstMove ? "MOV" : "MVS";
+            // For now, only send X,Y,Z over network to maintain compatibility with single loop listener
+            string pt = $"{commandType};{wp.X,8:F2};{wp.Y,8:F2};{wp.Z,8:F2}";
+            return await SendAsync(pt);
+        }
+
         public void Disconnect()
         {
             if (_writer != null)
