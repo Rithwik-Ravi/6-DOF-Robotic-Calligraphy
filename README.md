@@ -12,7 +12,7 @@ WIP C# WinForms app for real-time calligraphy & 3D printing via Mitsubishi RV-8C
 ![Application UI](UI.png)
 
 **3D Printing Demo**
-<video src="https://github.com/Rithwik-Ravi/6-DOF-Robotic-Calligraphy/raw/main/Robot_3D_Printing_UI.mp4" controls="controls" style="max-width: 100%;"></video>
+![3D Printing Demo](Robot_3D_Printing_UI.gif)
 
 ---
 
