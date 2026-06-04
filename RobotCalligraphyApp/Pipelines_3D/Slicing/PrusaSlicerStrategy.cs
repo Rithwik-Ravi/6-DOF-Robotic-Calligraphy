@@ -31,7 +31,7 @@ namespace RobotCalligraphyApp.Pipelines_3D.Slicing
             ProcessStartInfo psi = new ProcessStartInfo
             {
                 FileName = prusaSlicerPath,
-                Arguments = $"-g \"{stlPath}\" --center 100,75 -o \"{outputGcode}\"",
+                Arguments = $"-g \"{stlPath}\" --center 100,75 --support-material --support-material-auto --gcode-resolution 0.5 -o \"{outputGcode}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
