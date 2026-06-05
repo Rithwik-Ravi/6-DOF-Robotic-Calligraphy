@@ -12,7 +12,7 @@ namespace RobotCalligraphyApp.Pipelines_2D
     public class ImageVectorizationPipeline2D : IToolpathGenerator
     {
         public string ImagePath { get; set; } = "";
-        public float TargetWidthMm { get; set; } = 200f;
+        public float TargetWidthMm { get; set; } = 260f;
         public int DetailLevel { get; set; } = 20;
 
         public List<PointF> PreviewPoints { get; private set; } = new List<PointF>();
@@ -90,12 +90,12 @@ namespace RobotCalligraphyApp.Pipelines_2D
                         
                         float scaleU = TargetWidthMm / imgWidth;
                         
-                        float drawZ = 118.00f;
-                        float transitZ = 123.00f;
+                        float drawZ = 164.640f;
+                        float transitZ = 169.640f;
                         
-                        PointF p1a = new PointF(-506.59f, 873.48f);
-                        PointF p2a = new PointF(-506.59f, 673.48f);
-                        PointF p4a = new PointF(-656.59f, 873.48f);
+                        PointF p1a = new PointF(340.00f, -860.00f);
+                        PointF p2a = new PointF(600.00f, -860.00f);
+                        PointF p4a = new PointF(340.00f, -1030.00f);
 
                         float dxW = p2a.X - p1a.X;
                         float dyW = p2a.Y - p1a.Y;

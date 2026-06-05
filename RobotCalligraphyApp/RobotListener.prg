@@ -4,7 +4,7 @@
 M1 = 1 ' Head Index (1 to 10)
 M2 = 1 ' Tail Index (1 to 10)
 
-P3 = (-581.59, +773.48, +150.00, +179.47, +0.04, +127.18)(7,1048576)
+P3 = (+470.00, -945.00, +200.00, +3.13, +0.53, -36.52)(7,0)
 OPEN "COM2:" AS #1
 
 ' Wait endlessly until a client actually connects!

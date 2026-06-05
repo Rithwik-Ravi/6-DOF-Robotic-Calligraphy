@@ -2,7 +2,7 @@
 
 ![C#](https://img.shields.io/badge/c%23-%23239120.svg?style=for-the-badge&logo=csharp&logoColor=white) ![Mitsubishi Electric](https://img.shields.io/badge/Mitsubishi_Electric-E60012?style=for-the-badge&logo=mitsubishielectric&logoColor=white) ![TCP/IP](https://img.shields.io/badge/TCP/IP-000000?style=for-the-badge&logo=tcp%2Fip&logoColor=white)
 
-WIP C# WinForms app for real-time calligraphy & 3D printing via Mitsubishi RV-8CRL-D & CR800. Streams live coordinates over TCP using an asynchronous lookahead buffer to achieve perfectly fluid continuous path interpolation (no pre-programmed waypoints).
+WIP C# WinForms app for real-time calligraphy & 3D printing via Mitsubishi CR800-series robots (e.g., 12kg models like RV-12CRL). Streams live coordinates over TCP using an asynchronous lookahead buffer to achieve perfectly fluid continuous path interpolation (no pre-programmed waypoints).
 
 ---
 
@@ -31,17 +31,17 @@ Uses **Strategy Pattern** for scalable, decoupled 2D & 3D pipelines.
 
 ## ✨ Key Features
 
-- **🧊 3D Printing**: Headless slicing (`prusa-slicer-console.exe`) with automatic breakaway support generation and adaptive G-Code resolution (decimation) for flawless robotic execution. Includes auto-centering, interactive 3D orbit viewer, and layer debugger.
+- **🧊 3D Printing**: Headless slicing (`prusa-slicer-console.exe`) with automatic breakaway support generation and adaptive G-Code resolution (decimation) for flawless robotic execution. Includes auto-centering, interactive Fusion 360-style 3D orbit viewer (pan, zoom, orbit), and layer debugger.
 - **🖋️ Typography**: 3 fonts (Block, Rounded, Italic), multi-line wrap, auto-justification.
 - **🖼️ Image Vectorization**: Emgu.CV raster-to-vector, Ramer-Douglas-Peucker compression, nearest-neighbor sorting, auto-scaling.
-- **⚡ Control**: Zero-latency streaming, Continuous Path Interpolation (`CNT 1`), intelligent TCP garbage collection, and instant Pause/Stop commands.
+- **⚡ Control**: Zero-latency streaming, Continuous Path Interpolation (`CNT 1`), intelligent TCP garbage collection, robust Melfa Basic string parsing, and instant Pause/Stop commands.
 
 ---
 
 ## 🔌 Setup & Hardware
 
 - **Hardware**: Ethernet laptop → CR800 controller.
-- **Network**: Robot IP `192.168.0.20`, Laptop IP `192.168.0.100` (subnet `255.255.255.0`).
+- **Network**: Robot IP `192.168.3.20`, Laptop IP `192.168.3.100` (subnet `255.255.255.0`).
 - **PrusaSlicer**: Ensure `prusa-slicer-console.exe` is in PATH or the default installation directory.
 
 ---
@@ -60,7 +60,7 @@ Uses **Strategy Pattern** for scalable, decoupled 2D & 3D pipelines.
 
 1. Run `RobotListener_Smooth.prg` on the robot controller (Slot 1).
 2. `dotnet run --project RobotCalligraphyApp.csproj`.
-3. Connect to IP `192.168.0.20`, Port `10003`.
+3. Connect to IP `192.168.3.20`, Port `10003`.
 4. Select 2D (Image/Text) or 3D (STL).
 5. Click **Execute** to stream.
 

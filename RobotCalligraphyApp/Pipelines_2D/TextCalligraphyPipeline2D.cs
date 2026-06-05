@@ -121,12 +121,12 @@ namespace RobotCalligraphyApp.Pipelines_2D
                 return waypoints;
             }
 
-            float drawZ = 118.00f;
-            float transitZ = 123.00f;
+            float drawZ = 164.640f;
+            float transitZ = 169.640f;
             
-            PointF p1a = new PointF(-506.59f, 873.48f);
-            PointF p2a = new PointF(-506.59f, 673.48f);
-            PointF p4a = new PointF(-656.59f, 873.48f);
+            PointF p1a = new PointF(340.00f, -860.00f);
+            PointF p2a = new PointF(600.00f, -860.00f);
+            PointF p4a = new PointF(340.00f, -1030.00f);
 
             float dxW = p2a.X - p1a.X;
             float dyW = p2a.Y - p1a.Y;

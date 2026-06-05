@@ -14,8 +14,9 @@ namespace RobotCalligraphyApp.CoreNetworking
         private StreamReader? _reader;
         private StreamWriter? _writer;
         
-        // 50-point lookahead buffer
-        private SemaphoreSlim _semaphore = new SemaphoreSlim(50, 50);
+        // 5-point lookahead buffer for responsive pausing
+        public const int LookaheadBufferSize = 5;
+        private SemaphoreSlim _semaphore = new SemaphoreSlim(LookaheadBufferSize, LookaheadBufferSize);
         private CancellationTokenSource? _receiveCts;
 
         public bool IsConnected => _client?.Connected ?? false;
@@ -107,8 +108,8 @@ namespace RobotCalligraphyApp.CoreNetworking
 
         public async Task<string?> SendHomeAsync()
         {
-            string pHomeStr = "MVS; -581.59;  773.48;  150.00";
-            return await SendAsync(pHomeStr);
+            string pt = $"MOV;{470.00f,8:F2};{-945.00f,8:F2};{200.00f,8:F2}";
+            return await SendAsync(pt);
         }
 
         public async Task<string?> SendWaypointAsync(RoboticWaypoint wp, bool isFirstMove)

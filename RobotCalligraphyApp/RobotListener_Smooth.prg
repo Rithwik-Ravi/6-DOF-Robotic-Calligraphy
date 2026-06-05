@@ -1,11 +1,10 @@
 ' ========================================================
 ' STREAMING LISTENER (Smooth Continuous Path)
 ' ========================================================
-' Enable Continuous Path blending to prevent stuttering!
-' This was the main reason the robot stuttered before (CNT 0)
-CNT 1
 
-P3 = (-581.59, +773.48, +150.00, +179.47, +0.04, +127.18)(7,1048576)
+CNT 0
+
+P3 = (+470.00, -945.00, +200.00, +3.13, +0.53, -36.52)(7,0)
 
 OPEN "COM2:" AS #1
 
@@ -27,16 +26,13 @@ If M_Open(1) = 0 Then GoTo *WAITCONN
         GoTo *LOOP
     EndIf
 
-    ' Extract coordinate substrings safely now that we know the string is long enough
+    ' Extract coordinate substrings directly into Val() to avoid undefined string variable errors
     C2$ = Mid$(C1$, 1, 3)
-    C3$ = Mid$(C1$, 5, 8)
-    C4$ = Mid$(C1$, 14, 8)
-    C5$ = Mid$(C1$, 23, 8)
-
+    
     P2 = P3
-    P2.X = Val(C3$)
-    P2.Y = Val(C4$)
-    P2.Z = Val(C5$)
+    P2.X = Val(Mid$(C1$, 5, 8))
+    P2.Y = Val(Mid$(C1$, 14, 8))
+    P2.Z = Val(Mid$(C1$, 23, 8))
 
     ' The CR800 controller has a built-in read-ahead motion buffer (up to 32 points)
     ' Send ACK back to C# *before* blocking on the queue

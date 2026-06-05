@@ -71,11 +71,27 @@ namespace RobotCalligraphyApp
         private float orbitYaw = 45f;
         private float orbitPitch = 30f;
         private bool isOrbiting = false;
+        private bool isPanning = false;
+        private float panOffsetX = 0f;
+        private float panOffsetY = 0f;
+        private float zoomScale = 3.0f;
         private Point lastMousePos;
 
         public Form1()
         {
             InitializeComponent();
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try
+            {
+                executionCts?.Cancel();
+                robotClient?.Disconnect();
+            }
+            catch { }
+            Environment.Exit(0);
+            base.OnFormClosing(e);
         }
 
         private void StyleButton(Button btn, Color backColor, Color foreColor)
@@ -103,7 +119,7 @@ namespace RobotCalligraphyApp
             Panel pnlTop = new Panel() { Location = new Point(0, 0), Size = new Size(1200, 60), BackColor = Color.FromArgb(230, 230, 230), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
             
             Label lblIp = new Label() { Text = "IP:", Location = new Point(10, 22), AutoSize = true };
-            txtIpAddress = new TextBox() { Location = new Point(35, 19), Width = 110, Text = "192.168.0.20", BackColor = ctrlBg, ForeColor = Color.Black, BorderStyle = BorderStyle.FixedSingle };
+            txtIpAddress = new TextBox() { Location = new Point(35, 19), Width = 110, Text = "192.168.3.20", BackColor = ctrlBg, ForeColor = Color.Black, BorderStyle = BorderStyle.FixedSingle };
             
             Label lblPort = new Label() { Text = "Port:", Location = new Point(155, 22), AutoSize = true };
             txtPort = new TextBox() { Location = new Point(195, 19), Width = 55, Text = "10003", BackColor = ctrlBg, ForeColor = Color.Black, BorderStyle = BorderStyle.FixedSingle };
@@ -207,6 +223,9 @@ namespace RobotCalligraphyApp
             picOriginal.MouseDown += PicOriginal_MouseDown;
             picOriginal.MouseMove += PicOriginal_MouseMove;
             picOriginal.MouseUp += PicOriginal_MouseUp;
+            picOriginal.MouseWheel += PicOriginal_MouseWheel;
+            picOriginal.MouseDoubleClick += PicOriginal_MouseDoubleClick;
+            picOriginal.MouseEnter += PicOriginal_MouseEnter;
 
             picPreview = new PictureBox() 
             { 
@@ -357,9 +376,9 @@ namespace RobotCalligraphyApp
                 // Use standard P3 variable for Home Position to avoid declaration errors
                 // Restored the exact physical coordinates and posture flags (7,1048576) 
                 // so the real robot doesn't violently unwind its wrist!
-                sw.WriteLine("P3 = (-581.59, +773.48, +150.00, +179.47, +0.04, +127.18)(7,1048576)");
+                sw.WriteLine("P3 = (+470.00, -945.00, +200.00, +3.13, +0.53, -36.52)(7,0)");
                 sw.WriteLine("MOV P3");
-                sw.WriteLine("P1 = (-506.59, +873.48, +118.00, +179.47, +0.04, +127.18)(7,1048576)");
+                sw.WriteLine("P1 = (+340.00, -1030.00, +164.64, +3.13, +0.53, -36.52)(7,0)");
                 sw.WriteLine("CNT 1");
                 bool isFirstMove = true;
                 foreach (var wp in waypoints)
@@ -427,9 +446,7 @@ namespace RobotCalligraphyApp
                 int totalPoints = waypoints.Count;
                 int pointsExecuted = 0;
                 System.Diagnostics.Stopwatch uiSw = System.Diagnostics.Stopwatch.StartNew();
-                
-                double emaMsPerPoint = 50.0; // Default assumption to start
-                System.Diagnostics.Stopwatch pointSw = new System.Diagnostics.Stopwatch();
+                System.Diagnostics.Stopwatch globalSw = System.Diagnostics.Stopwatch.StartNew();
 
                 foreach (var wp in waypoints)
                 {
@@ -443,30 +460,33 @@ namespace RobotCalligraphyApp
                         await Task.Delay(100);
                     }
 
-                    pointSw.Restart();
                     resp = await robotClient.SendWaypointAsync(wp, isFirstMove);
-                    pointSw.Stop();
                     
                     if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot streaming interrupted. Response: {resp}");
                     
                     pointsExecuted++;
-                    
-                    // Update Exponential Moving Average (ignore the first point as it gets an instant ACK)
-                    if (pointsExecuted > 1)
-                    {
-                        double currentMs = pointSw.ElapsedMilliseconds;
-                        emaMsPerPoint = (emaMsPerPoint * 0.9) + (currentMs * 0.1);
-                    }
-
                     isFirstMove = false;
 
-                    // Update UI (throttled to ~10 FPS)
+                    // Update UI (throttled to ~100 FPS)
                     if (uiSw.ElapsedMilliseconds > 100 || pointsExecuted == totalPoints)
                     {
                         currentRobotWaypoint = wp;
                         uiSw.Restart();
 
-                        double msRemaining = emaMsPerPoint * (totalPoints - pointsExecuted);
+                        int bufferSize = RobotCalligraphyApp.CoreNetworking.RobotTcpClient.LookaheadBufferSize;
+                        int pointsPhysicallyCompleted = Math.Max(0, pointsExecuted - bufferSize);
+                        
+                        double msRemaining;
+                        if (pointsPhysicallyCompleted > 0)
+                        {
+                            double avgMsPerPoint = (double)globalSw.ElapsedMilliseconds / pointsPhysicallyCompleted;
+                            msRemaining = avgMsPerPoint * (totalPoints - pointsExecuted);
+                        }
+                        else
+                        {
+                            msRemaining = 50.0 * (totalPoints - pointsExecuted); // default estimate before buffer fills
+                        }
+
                         TimeSpan timeRemaining = TimeSpan.FromMilliseconds(msRemaining);
                         int pct = (int)((pointsExecuted / (float)totalPoints) * 100);
 
@@ -603,12 +623,12 @@ namespace RobotCalligraphyApp
             
             // Draw working area box (4:3 aspect ratio to match 200x150mm physical workspace)
             float workingAreaWidth = picPreview.Width - 40; // 20px padding on each side
-            float workingAreaHeight = workingAreaWidth * (150f / 200f);
+            float workingAreaHeight = workingAreaWidth * (170f / 260f);
             
             if (workingAreaHeight > picPreview.Height - 40)
             {
                 workingAreaHeight = picPreview.Height - 40;
-                workingAreaWidth = workingAreaHeight * (200f / 150f);
+                workingAreaWidth = workingAreaHeight * (260f / 170f);
             }
 
             float offsetX = (picPreview.Width - workingAreaWidth) / 2f;
@@ -616,7 +636,7 @@ namespace RobotCalligraphyApp
             
             // Draw physical boundaries
             g.DrawRectangle(Pens.Black, offsetX, offsetY, workingAreaWidth, workingAreaHeight);
-            g.DrawString("Physical Working Area (200x150mm)", this.Font, Brushes.Gray, offsetX, offsetY - 15);
+            g.DrawString("Physical Working Area (260x170mm)", this.Font, Brushes.Gray, offsetX, offsetY - 15);
 
             // Draw 2D Points
             if (previewPoints.Count > 0)
@@ -817,9 +837,7 @@ namespace RobotCalligraphyApp
                 int totalPoints = waypoints3D.Count;
                 int pointsExecuted = 0;
                 System.Diagnostics.Stopwatch uiSw = System.Diagnostics.Stopwatch.StartNew();
-                
-                double emaMsPerPoint = 50.0; 
-                System.Diagnostics.Stopwatch pointSw = new System.Diagnostics.Stopwatch();
+                System.Diagnostics.Stopwatch globalSw = System.Diagnostics.Stopwatch.StartNew();
 
                 foreach (var wp in waypoints3D)
                 {
@@ -831,21 +849,12 @@ namespace RobotCalligraphyApp
                         await Task.Delay(100);
                     }
 
-                    pointSw.Restart();
                     // Using our extended TCP Client method
                     resp = await robotClient.SendWaypoint6DOFAsync(wp, isFirstMove);
-                    pointSw.Stop();
                     
                     if (resp == null || !resp.Trim().StartsWith("ACK")) throw new Exception($"Robot streaming interrupted. Response: {resp}");
                     
                     pointsExecuted++;
-                    
-                    if (pointsExecuted > 1)
-                    {
-                        double currentMs = pointSw.ElapsedMilliseconds;
-                        emaMsPerPoint = (emaMsPerPoint * 0.9) + (currentMs * 0.1);
-                    }
-
                     isFirstMove = false;
 
                     if (uiSw.ElapsedMilliseconds > 100 || pointsExecuted == totalPoints)
@@ -854,7 +863,20 @@ namespace RobotCalligraphyApp
                         currentRobotWaypoint = new RoboticWaypoint(wp.X, wp.Y, wp.Z, wp.UV);
                         uiSw.Restart();
 
-                        double msRemaining = emaMsPerPoint * (totalPoints - pointsExecuted);
+                        int bufferSize = RobotCalligraphyApp.CoreNetworking.RobotTcpClient.LookaheadBufferSize;
+                        int pointsPhysicallyCompleted = Math.Max(0, pointsExecuted - bufferSize);
+                        
+                        double msRemaining;
+                        if (pointsPhysicallyCompleted > 0)
+                        {
+                            double avgMsPerPoint = (double)globalSw.ElapsedMilliseconds / pointsPhysicallyCompleted;
+                            msRemaining = avgMsPerPoint * (totalPoints - pointsExecuted);
+                        }
+                        else
+                        {
+                            msRemaining = 50.0 * (totalPoints - pointsExecuted);
+                        }
+
                         TimeSpan timeRemaining = TimeSpan.FromMilliseconds(msRemaining);
                         int pct = (int)((pointsExecuted / (float)totalPoints) * 100);
 
@@ -935,6 +957,11 @@ namespace RobotCalligraphyApp
                 isOrbiting = true;
                 lastMousePos = e.Location;
             }
+            else if (e.Button == MouseButtons.Middle)
+            {
+                isPanning = true;
+                lastMousePos = e.Location;
+            }
         }
 
         private void PicOriginal_MouseMove(object? sender, MouseEventArgs e)
@@ -953,11 +980,52 @@ namespace RobotCalligraphyApp
                 lastMousePos = e.Location;
                 picOriginal.Invalidate();
             }
+            else if (isPanning)
+            {
+                int dx = e.X - lastMousePos.X;
+                int dy = e.Y - lastMousePos.Y;
+                
+                panOffsetX += dx;
+                panOffsetY += dy;
+                
+                lastMousePos = e.Location;
+                picOriginal.Invalidate();
+            }
         }
 
         private void PicOriginal_MouseUp(object? sender, MouseEventArgs e)
         {
-            isOrbiting = false;
+            if (e.Button == MouseButtons.Left) isOrbiting = false;
+            if (e.Button == MouseButtons.Middle) isPanning = false;
+        }
+
+        private void PicOriginal_MouseWheel(object? sender, MouseEventArgs e)
+        {
+            if (waypoints3D.Count == 0) return;
+            if (e.Delta > 0) zoomScale *= 1.15f;
+            else if (e.Delta < 0) zoomScale *= 0.85f;
+            
+            if (zoomScale < 0.1f) zoomScale = 0.1f;
+            if (zoomScale > 50.0f) zoomScale = 50.0f;
+            picOriginal.Invalidate();
+        }
+
+        private void PicOriginal_MouseDoubleClick(object? sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Middle)
+            {
+                zoomScale = 3.0f;
+                panOffsetX = 0f;
+                panOffsetY = 0f;
+                orbitYaw = 45f;
+                orbitPitch = 30f;
+                picOriginal.Invalidate();
+            }
+        }
+
+        private void PicOriginal_MouseEnter(object? sender, EventArgs e)
+        {
+            picOriginal.Focus();
         }
 
         private void PicOriginal_Paint(object? sender, PaintEventArgs e)
@@ -971,12 +1039,11 @@ namespace RobotCalligraphyApp
             // Basic 3D projection parameters
             float centerX = picOriginal.Width / 2f;
             float centerY = picOriginal.Height / 2f;
-            float scale = 3.0f; // Zoom factor
 
             // Bounding box center based on robot workspace (adjust based on max bounds)
-            float cx = -606.59f; // Center of X: (-506.59 to -706.59)
-            float cy = 773.48f;  // Center of Y: (873.48 to 673.48)
-            float cz = 118f;     // Base Z
+            float cx = 470.00f;  // Center of X: (340 to 600)
+            float cy = -945.00f; // Center of Y: (-1030 to -860)
+            float cz = 164.640f; // Base Z
 
             float yawRad = orbitYaw * (float)Math.PI / 180f;
             float pitchRad = orbitPitch * (float)Math.PI / 180f;
@@ -1009,8 +1076,8 @@ namespace RobotCalligraphyApp
                 // float z2 = y1 * sinP + z1 * cosP; // Depth not used for simple orthogonal projection
 
                 // Project to screen
-                float sx = centerX + x2 * scale;
-                float sy = centerY + y2 * scale;
+                float sx = centerX + panOffsetX + x2 * zoomScale;
+                float sy = centerY + panOffsetY + y2 * zoomScale;
                 PointF p = new PointF(sx, sy);
 
                 if (lastScreenP.HasValue)

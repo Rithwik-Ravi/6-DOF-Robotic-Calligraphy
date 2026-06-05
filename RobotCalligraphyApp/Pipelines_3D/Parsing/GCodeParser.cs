@@ -16,9 +16,9 @@ namespace RobotCalligraphyApp.Pipelines_3D.Parsing
         private float lastF = 3000f;
         
         // Robot Constants
-        private const float BaseZ = 118.00f;
-        private const float BaseX = -506.59f;
-        private const float BaseY = 873.48f;
+        private const float BaseZ = 164.640f;
+        private const float BaseX = 340.00f;
+        private const float BaseY = -1030.00f;
         
         // Scale to analog Extrusion (0-5v)
         private const float MaxEDelta = 0.5f; 
@@ -86,19 +86,19 @@ namespace RobotCalligraphyApp.Pipelines_3D.Parsing
             // Base vectors found in analysis:
             // Slicer Width mapped to Robot Y axis negatively
             // Slicer Height mapped to Robot X axis negatively
-            // XRobot = -506.59 - SlicerY
-            // YRobot = 873.48 - SlicerX
+            // XRobot maps directly to U (width), so XRobot = BaseX + SlicerX
+            // YRobot maps directly to V (height), so YRobot = BaseY + SlicerY
             
-            float targetX = BaseX - lastY;
-            float targetY = BaseY - lastX;
+            float targetX = BaseX + lastX;
+            float targetY = BaseY + lastY;
             float targetZ = BaseZ + lastZ;
 
             // Maintain same posture
-            float a = 179.47f;
-            float b = 0.04f;
-            float c = 127.18f;
+            float a = 3.13f;
+            float b = 0.53f;
+            float c = -36.52f;
 
-            PointF uv = new PointF(lastX / 200f, lastY / 150f);
+            PointF uv = new PointF(lastX / 260f, lastY / 170f);
 
             return new RoboticWaypoint6DOF(
                 targetX, targetY, targetZ, 
